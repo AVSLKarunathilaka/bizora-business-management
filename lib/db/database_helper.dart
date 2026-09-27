@@ -25,18 +25,79 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
+
         onCreate: (db, version) async {
           await db.execute('''
-            CREATE TABLE customers (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              name TEXT NOT NULL,
-              email TEXT NOT NULL,
-              phone TEXT NOT NULL,
-              address TEXT NOT NULL,
-              created_at TEXT NOT NULL
-            )
-          ''');
+      CREATE TABLE customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        address TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+          await db.execute('''
+      CREATE TABLE invoices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_number TEXT NOT NULL UNIQUE,
+        customer_id INTEGER NOT NULL,
+        invoice_date TEXT NOT NULL,
+        subtotal REAL NOT NULL,
+        discount REAL NOT NULL DEFAULT 0,
+        tax_percent REAL NOT NULL DEFAULT 0,
+        tax_amount REAL NOT NULL DEFAULT 0,
+        grand_total REAL NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Draft',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+          await db.execute('''
+      CREATE TABLE invoice_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        total REAL NOT NULL
+      )
+    ''');
+        },
+
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('''
+        CREATE TABLE invoices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          invoice_number TEXT NOT NULL UNIQUE,
+          customer_id INTEGER NOT NULL,
+          invoice_date TEXT NOT NULL,
+          subtotal REAL NOT NULL,
+          discount REAL NOT NULL DEFAULT 0,
+          tax_percent REAL NOT NULL DEFAULT 0,
+          tax_amount REAL NOT NULL DEFAULT 0,
+          grand_total REAL NOT NULL,
+          status TEXT NOT NULL DEFAULT 'Draft',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+
+            await db.execute('''
+        CREATE TABLE invoice_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          invoice_id INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          quantity REAL NOT NULL,
+          unit_price REAL NOT NULL,
+          total REAL NOT NULL
+        )
+      ''');
+          }
         },
       ),
     );
@@ -126,5 +187,69 @@ class DatabaseHelper {
     );
 
     return result.isNotEmpty;
+  }
+
+  // Insert invoice
+  static Future<int> insertInvoice(Map<String, dynamic> invoice) async {
+    final db = await database;
+
+    return await db.insert('invoices', invoice);
+  }
+
+  // Insert invoice item
+  static Future<int> insertInvoiceItem(Map<String, dynamic> item) async {
+    final db = await database;
+
+    return await db.insert('invoice_items', item);
+  }
+
+  // Get all invoices
+  static Future<List<Map<String, dynamic>>> getInvoices() async {
+  final db = await database;
+
+  return await db.rawQuery('''
+    SELECT
+      invoices.*,
+      customers.name AS customer_name,
+      customers.phone AS customer_phone
+    FROM invoices
+    LEFT JOIN customers
+      ON invoices.customer_id = customers.id
+    ORDER BY invoices.id DESC
+  ''');
+}
+
+  // Get invoice items
+  static Future<List<Map<String, dynamic>>> getInvoiceItems(
+    int invoiceId,
+  ) async {
+    final db = await database;
+
+    return await db.query(
+      'invoice_items',
+      where: 'invoice_id = ?',
+      whereArgs: [invoiceId],
+      orderBy: 'id ASC',
+    );
+  }
+
+  // Save invoice and invoice items as one transaction
+  static Future<int> saveInvoiceWithItems({
+    required Map<String, dynamic> invoice,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final db = await database;
+
+    return await db.transaction((txn) async {
+      // Insert invoice
+      final invoiceId = await txn.insert('invoices', invoice);
+
+      // Insert invoice items
+      for (final item in items) {
+        await txn.insert('invoice_items', {...item, 'invoice_id': invoiceId});
+      }
+
+      return invoiceId;
+    });
   }
 }
