@@ -775,6 +775,8 @@ class _InvoicePageState extends State<InvoicePage> {
                             ),
 
                             subtitle: Text(
+                              '${invoice['customer_name'] ?? 'Unknown Customer'}\n'
+                              '${invoice['customer_phone'] ?? ''}\n'
                               'Date: ${invoice['invoice_date'].toString().split('T').first}\n'
                               'Status: ${invoice['status']}',
                             ),
