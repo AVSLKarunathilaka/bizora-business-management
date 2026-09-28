@@ -658,6 +658,200 @@ class _InvoicePageState extends State<InvoicePage> {
     });
   }
 
+  Future<void> _showInvoiceDetails(Map<String, dynamic> invoice) async {
+    final invoiceId = invoice['id'] as int;
+
+    final items = await DatabaseHelper.getInvoiceItems(invoiceId);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.receipt_long),
+              const SizedBox(width: 10),
+              Text(invoice['invoice_number'].toString()),
+            ],
+          ),
+
+          content: SizedBox(
+            width: 600,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Customer: ${invoice['customer_name'] ?? 'Unknown Customer'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text('Phone: ${invoice['customer_phone'] ?? '-'}'),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    'Date: ${invoice['invoice_date'].toString().split('T').first}',
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const Divider(),
+
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    'Items',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  ...items.map((item) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+
+                      title: Text(item['description'].toString()),
+
+                      subtitle: Text(
+                        '${item['quantity']} × '
+                        'Rs. ${double.parse(item['unit_price'].toString()).toStringAsFixed(2)}',
+                      ),
+
+                      trailing: Text(
+                        'Rs. ${double.parse(item['total'].toString()).toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }),
+
+                  const Divider(),
+
+                  const SizedBox(height: 10),
+
+                  _invoiceSummaryRow('Subtotal', invoice['subtotal']),
+
+                  _invoiceSummaryRow('Discount', invoice['discount']),
+
+                  _invoiceSummaryRow('Tax', invoice['tax_amount']),
+
+                  const Divider(),
+
+                  _invoiceSummaryRow(
+                    'Grand Total',
+                    invoice['grand_total'],
+                    isGrandTotal: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                final shouldDelete = await showDialog<bool>(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: const Text('Delete Invoice?'),
+                      content: const Text(
+                        'Are you sure you want to delete this invoice?\n'
+                        'This action cannot be undone.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context, false);
+                          },
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            Navigator.pop(context, true);
+                          },
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+
+                if (shouldDelete != true) return;
+
+                try {
+                  await DatabaseHelper.deleteInvoice(invoice['id'] as int);
+
+                  if (!mounted) return;
+
+                  Navigator.pop(context);
+
+                  await _loadInvoices();
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Invoice deleted successfully.'),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete invoice: $e')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete'),
+            ),
+
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _invoiceSummaryRow(
+    String label,
+    dynamic value, {
+    bool isGrandTotal = false,
+  }) {
+    final amount = double.tryParse(value.toString()) ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isGrandTotal ? 18 : 15,
+              fontWeight: isGrandTotal ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+          Text(
+            'Rs. ${amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: isGrandTotal ? 18 : 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -782,6 +976,10 @@ class _InvoicePageState extends State<InvoicePage> {
                             ),
 
                             isThreeLine: true,
+
+                            onTap: () {
+                              _showInvoiceDetails(invoice);
+                            },
 
                             trailing: Text(
                               'Rs. ${double.parse(invoice['grand_total'].toString()).toStringAsFixed(2)}',

@@ -205,9 +205,9 @@ class DatabaseHelper {
 
   // Get all invoices
   static Future<List<Map<String, dynamic>>> getInvoices() async {
-  final db = await database;
+    final db = await database;
 
-  return await db.rawQuery('''
+    return await db.rawQuery('''
     SELECT
       invoices.*,
       customers.name AS customer_name,
@@ -217,7 +217,7 @@ class DatabaseHelper {
       ON invoices.customer_id = customers.id
     ORDER BY invoices.id DESC
   ''');
-}
+  }
 
   // Get invoice items
   static Future<List<Map<String, dynamic>>> getInvoiceItems(
@@ -250,6 +250,21 @@ class DatabaseHelper {
       }
 
       return invoiceId;
+    });
+  }
+
+  //delete invoice
+  static Future<void> deleteInvoice(int invoiceId) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      await txn.delete(
+        'invoice_items',
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+      );
+
+      await txn.delete('invoices', where: 'id = ?', whereArgs: [invoiceId]);
     });
   }
 }
