@@ -139,6 +139,18 @@ class DatabaseHelper {
     return await db.delete('customers', where: 'id = ?', whereArgs: [id]);
   }
 
+  // Update only the status of an existing invoice
+  static Future<void> updateInvoiceStatus(int invoiceId, String status) async {
+    final db = await database;
+
+    await db.update(
+      'invoices',
+      {'status': status, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [invoiceId],
+    );
+  }
+
   // Check if phone number already exists
   static Future<bool> customerPhoneExists(
     String phone, {
@@ -265,6 +277,35 @@ class DatabaseHelper {
       );
 
       await txn.delete('invoices', where: 'id = ?', whereArgs: [invoiceId]);
+    });
+  }
+
+  //update invoice
+
+  static Future<void> updateInvoiceWithItems({
+    required int invoiceId,
+    required Map<String, dynamic> invoice,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      await txn.update(
+        'invoices',
+        invoice,
+        where: 'id = ?',
+        whereArgs: [invoiceId],
+      );
+
+      await txn.delete(
+        'invoice_items',
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+      );
+
+      for (final item in items) {
+        await txn.insert('invoice_items', {...item, 'invoice_id': invoiceId});
+      }
     });
   }
 }
