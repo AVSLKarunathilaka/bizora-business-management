@@ -25,7 +25,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
 
         onCreate: (db, version) async {
           await db.execute('''
@@ -97,6 +97,20 @@ class DatabaseHelper {
           total REAL NOT NULL
         )
       ''');
+          }
+
+          if (oldVersion < 3) {
+            await db.execute('''
+    CREATE TABLE payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      payment_date TEXT NOT NULL,
+      payment_method TEXT NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL
+    )
+  ''');
           }
         },
       ),
@@ -307,5 +321,42 @@ class DatabaseHelper {
         await txn.insert('invoice_items', {...item, 'invoice_id': invoiceId});
       }
     });
+  }
+
+  // Add a new payment for an invoice
+  static Future<int> insertPayment(Map<String, dynamic> payment) async {
+    final db = await database;
+
+    return await db.insert('payments', payment);
+  }
+
+  // Get all payments belonging to one invoice
+  static Future<List<Map<String, dynamic>>> getInvoicePayments(
+    int invoiceId,
+  ) async {
+    final db = await database;
+
+    return await db.query(
+      'payments',
+      where: 'invoice_id = ?',
+      whereArgs: [invoiceId],
+      orderBy: 'payment_date DESC, id DESC',
+    );
+  }
+
+  // Get the total amount already paid for an invoice
+  static Future<double> getInvoicePaidAmount(int invoiceId) async {
+    final db = await database;
+
+    final result = await db.rawQuery(
+      '''
+    SELECT COALESCE(SUM(amount), 0) AS total_paid
+    FROM payments
+    WHERE invoice_id = ?
+  ''',
+      [invoiceId],
+    );
+
+    return (result.first['total_paid'] as num).toDouble();
   }
 }

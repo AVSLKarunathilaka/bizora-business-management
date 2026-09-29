@@ -1446,18 +1446,42 @@ class _InvoicePageState extends State<InvoicePage> {
     // Load invoice items.
     final items = await DatabaseHelper.getInvoiceItems(invoiceId);
 
+    // Load payment summary.
+    final paidAmount = await DatabaseHelper.getInvoicePaidAmount(invoiceId);
+    // Load payment history.
+    final payments = await DatabaseHelper.getInvoicePayments(invoiceId);
+
+    final grandTotal = (invoice['grand_total'] as num).toDouble();
+
+    final remainingAmount = grandTotal - paidAmount;
+
     if (!mounted) return;
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          // Invoice number title.
+          
+          // Invoice number title + Add Payment button.
           title: Row(
             children: [
               const Icon(Icons.receipt_long),
+
               const SizedBox(width: 10),
-              Text(invoice['invoice_number'].toString()),
+
+              Expanded(child: Text(invoice['invoice_number'].toString())),
+
+              const SizedBox(width: 15),
+
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+
+                  _showAddPaymentDialog(invoice);
+                },
+                icon: const Icon(Icons.payment_outlined),
+                label: const Text('Add Payment'),
+              ),
             ],
           ),
 
@@ -1593,11 +1617,77 @@ class _InvoicePageState extends State<InvoicePage> {
                     invoice['grand_total'],
                     isGrandTotal: true,
                   ),
+
+                  const SizedBox(height: 20),
+
+                  const Divider(),
+
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    'Payment History',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  if (payments.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Text(
+                        'No payments recorded yet.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  else
+                    ...payments.map((payment) {
+                      final amount = (payment['amount'] as num).toDouble();
+
+                      final paymentDate = payment['payment_date']
+                          .toString()
+                          .split('T')
+                          .first;
+
+                      final method =
+                          payment['payment_method']?.toString() ?? 'Unknown';
+
+                      final note = payment['note']?.toString() ?? '';
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.payment),
+                          ),
+                          title: Text(
+                            'Rs. ${amount.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            '$paymentDate • $method'
+                            '${note.isNotEmpty ? '\nNote: $note' : ''}',
+                          ),
+                        ),
+                      );
+                    }),
+
+                  const SizedBox(height: 8),
+
+                  _invoiceSummaryRow('Paid Amount', paidAmount),
+
+                  _invoiceSummaryRow(
+                    'Remaining',
+                    remainingAmount,
+                    isGrandTotal: true,
+                  ),
                 ],
               ),
             ),
           ),
 
+          // ============================================================
+          // DETAILS ACTIONS
+          // ============================================================
           // ============================================================
           // DETAILS ACTIONS
           // ============================================================
@@ -1610,7 +1700,7 @@ class _InvoicePageState extends State<InvoicePage> {
                 _showEditInvoiceDialog(invoice);
               },
               icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit'),
+              label: const Text('Edit Invoice'),
             ),
 
             // Delete invoice.
@@ -1626,18 +1716,22 @@ class _InvoicePageState extends State<InvoicePage> {
                         'This action cannot be undone.',
                       ),
                       actions: [
-                        TextButton(
+                        // Cancel delete.
+                        TextButton.icon(
                           onPressed: () {
                             Navigator.pop(context, false);
                           },
-                          child: const Text('Cancel'),
+                          icon: const Icon(Icons.close),
+                          label: const Text('Cancel'),
                         ),
 
-                        FilledButton(
+                        // Confirm delete.
+                        FilledButton.icon(
                           onPressed: () {
                             Navigator.pop(context, true);
                           },
-                          child: const Text('Delete'),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Delete Invoice'),
                         ),
                       ],
                     );
@@ -1658,6 +1752,8 @@ class _InvoicePageState extends State<InvoicePage> {
                   // Refresh list after deletion.
                   await _loadInvoices();
 
+                  if (!mounted) return;
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Invoice deleted successfully.'),
@@ -1672,15 +1768,18 @@ class _InvoicePageState extends State<InvoicePage> {
                 }
               },
               icon: const Icon(Icons.delete_outline),
-              label: const Text('Delete'),
+              label: const Text('Delete Invoice'),
             ),
 
+            
+
             // Close details dialog.
-            TextButton(
+            TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text('Close'),
+              icon: const Icon(Icons.close),
+              label: const Text('Close'),
             ),
           ],
         );
@@ -1954,6 +2053,299 @@ class _InvoicePageState extends State<InvoicePage> {
           ],
         ),
       ),
+    );
+  }
+  // ============================================================
+  // ADD PAYMENT
+  // ============================================================
+
+  Future<void> _showAddPaymentDialog(Map<String, dynamic> invoice) async {
+    // Payment amount controller.
+    final amountController = TextEditingController();
+
+    // Optional payment note controller.
+    final noteController = TextEditingController();
+
+    // Default payment date.
+    DateTime selectedPaymentDate = DateTime.now();
+
+    // Default payment method.
+    String selectedPaymentMethod = 'Cash';
+
+    // Invoice total.
+    final invoiceTotal =
+        double.tryParse(invoice['grand_total'].toString()) ?? 0;
+
+    // Get already paid amount.
+    final paidAmount = await DatabaseHelper.getInvoicePaidAmount(
+      invoice['id'] as int,
+    );
+
+    // Calculate remaining amount.
+    final remainingAmount = invoiceTotal - paidAmount;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              // ==========================================================
+              // TITLE
+              // ==========================================================
+
+              title: const Row(
+                children: [
+                  Icon(Icons.payment),
+                  SizedBox(width: 10),
+                  Text('Add Payment'),
+                ],
+              ),
+
+              // ==========================================================
+              // CONTENT
+              // ==========================================================
+              content: SizedBox(
+                width: 450,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Invoice total.
+                      _invoiceSummaryRow('Invoice Total', invoiceTotal),
+
+                      // Already paid amount.
+                      _invoiceSummaryRow('Already Paid', paidAmount),
+
+                      // Remaining amount.
+                      _invoiceSummaryRow(
+                        'Remaining',
+                        remainingAmount,
+                        isGrandTotal: true,
+                      ),
+
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      const SizedBox(height: 15),
+
+                      // ====================================================
+                      // PAYMENT AMOUNT
+                      // ====================================================
+                      TextField(
+                        controller: amountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Amount',
+                          hintText: 'Enter amount paid',
+                          prefixIcon: Icon(Icons.attach_money),
+                          prefixText: 'Rs. ',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ====================================================
+                      // PAYMENT DATE
+                      // ====================================================
+                      InkWell(
+                        onTap: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: selectedPaymentDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+
+                          if (pickedDate != null) {
+                            setDialogState(() {
+                              selectedPaymentDate = pickedDate;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Payment Date',
+                            prefixIcon: Icon(Icons.calendar_today),
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            '${selectedPaymentDate.day.toString().padLeft(2, '0')}/'
+                            '${selectedPaymentDate.month.toString().padLeft(2, '0')}/'
+                            '${selectedPaymentDate.year}',
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ====================================================
+                      // PAYMENT METHOD
+                      // ====================================================
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedPaymentMethod,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Method',
+                          prefixIcon: Icon(Icons.account_balance_wallet),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                          DropdownMenuItem(value: 'Card', child: Text('Card')),
+                          DropdownMenuItem(
+                            value: 'Bank Transfer',
+                            child: Text('Bank Transfer'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Other',
+                            child: Text('Other'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+
+                          setDialogState(() {
+                            selectedPaymentMethod = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ====================================================
+                      // NOTE
+                      // ====================================================
+                      TextField(
+                        controller: noteController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Note (Optional)',
+                          hintText: 'Add a payment note',
+                          prefixIcon: Icon(Icons.note_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ==========================================================
+              // ACTION BUTTONS
+              // ==========================================================
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+
+                FilledButton.icon(
+                  onPressed: () async {
+                    // Convert entered amount to number.
+                    final amount =
+                        double.tryParse(amountController.text.trim()) ?? 0;
+
+                    // Validate amount.
+                    if (amount <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Payment amount must be greater than 0.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Prevent overpayment.
+                    if (amount > remainingAmount) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Payment cannot exceed remaining amount '
+                            '(Rs. ${remainingAmount.toStringAsFixed(2)}).',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Payment database record.
+                    final payment = {
+                      'invoice_id': invoice['id'] as int,
+                      'amount': amount,
+                      'payment_date': selectedPaymentDate.toIso8601String(),
+                      'payment_method': selectedPaymentMethod,
+                      'note': noteController.text.trim().isEmpty
+                          ? null
+                          : noteController.text.trim(),
+                      'created_at': DateTime.now().toIso8601String(),
+                    };
+
+                    try {
+                      // Save payment to SQLite.
+                      await DatabaseHelper.insertPayment(payment);
+
+                      // Get the updated total paid amount.
+                      final updatedPaidAmount =
+                          await DatabaseHelper.getInvoicePaidAmount(
+                            invoice['id'] as int,
+                          );
+
+                      // Determine the new invoice status.
+                      String newStatus;
+
+                      if (updatedPaidAmount <= 0) {
+                        newStatus = 'Draft';
+                      } else if (updatedPaidAmount >= invoiceTotal) {
+                        newStatus = 'Paid';
+                      } else {
+                        newStatus = 'Partially Paid';
+                      }
+
+                      // Update invoice status automatically.
+                      await DatabaseHelper.updateInvoiceStatus(
+                        invoice['id'] as int,
+                        newStatus,
+                      );
+                      if (!mounted) return;
+
+                      // Close payment dialog.
+                      Navigator.pop(context);
+
+                      // Refresh invoice list so the new status appears immediately.
+                      await _loadInvoices();
+
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Payment added successfully.'),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to add payment: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text('Save Payment'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
