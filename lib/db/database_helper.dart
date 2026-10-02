@@ -359,4 +359,11 @@ class DatabaseHelper {
 
     return (result.first['total_paid'] as num).toDouble();
   }
+
+  // Delete a payment
+  static Future<void> deletePayment(int paymentId) async {
+    final db = await database;
+
+    await db.delete('payments', where: 'id = ?', whereArgs: [paymentId]);
+  }
 }

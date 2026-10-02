@@ -1461,7 +1461,6 @@ class _InvoicePageState extends State<InvoicePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          
           // Invoice number title + Add Payment button.
           title: Row(
             children: [
@@ -1659,13 +1658,111 @@ class _InvoicePageState extends State<InvoicePage> {
                           leading: const CircleAvatar(
                             child: Icon(Icons.payment),
                           ),
+
                           title: Text(
                             'Rs. ${amount.toStringAsFixed(2)}',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
+
                           subtitle: Text(
                             '$paymentDate • $method'
                             '${note.isNotEmpty ? '\nNote: $note' : ''}',
+                          ),
+
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: 'Delete Payment',
+                            onPressed: () async {
+                              final shouldDelete = await showDialog<bool>(
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                    title: const Text('Delete Payment?'),
+                                    content: const Text(
+                                      'Are you sure you want to delete this payment?\n'
+                                      'The invoice paid amount and status will be updated.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(context, false);
+                                        },
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton.icon(
+                                        onPressed: () {
+                                          Navigator.pop(context, true);
+                                        },
+                                        icon: const Icon(Icons.delete_outline),
+                                        label: const Text('Delete Payment'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+
+                              if (shouldDelete != true) {
+                                return;
+                              }
+
+                              try {
+                                await DatabaseHelper.deletePayment(
+                                  payment['id'] as int,
+                                );
+
+                                final updatedPaidAmount =
+                                    await DatabaseHelper.getInvoicePaidAmount(
+                                      invoice['id'] as int,
+                                    );
+
+                                final invoiceTotal =
+                                    (invoice['grand_total'] as num).toDouble();
+
+                                String newStatus;
+
+                                if (updatedPaidAmount <= 0) {
+                                  newStatus = 'Draft';
+                                } else if (updatedPaidAmount >= invoiceTotal) {
+                                  newStatus = 'Paid';
+                                } else {
+                                  newStatus = 'Partially Paid';
+                                }
+
+                                await DatabaseHelper.updateInvoiceStatus(
+                                  invoice['id'] as int,
+                                  newStatus,
+                                );
+
+                                if (!mounted) return;
+
+                                Navigator.pop(context);
+
+                                await _loadInvoices();
+
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Payment deleted successfully.',
+                                    ),
+                                  ),
+                                );
+
+                                // Re-open updated invoice details.
+                                _showInvoiceDetails(invoice);
+                              } catch (e) {
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Failed to delete payment: $e',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
                           ),
                         ),
                       );
@@ -1770,8 +1867,6 @@ class _InvoicePageState extends State<InvoicePage> {
               icon: const Icon(Icons.delete_outline),
               label: const Text('Delete Invoice'),
             ),
-
-            
 
             // Close details dialog.
             TextButton.icon(
