@@ -1669,100 +1669,120 @@ class _InvoicePageState extends State<InvoicePage> {
                             '${note.isNotEmpty ? '\nNote: $note' : ''}',
                           ),
 
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: 'Delete Payment',
-                            onPressed: () async {
-                              final shouldDelete = await showDialog<bool>(
-                                context: context,
-                                builder: (context) {
-                                  return AlertDialog(
-                                    title: const Text('Delete Payment?'),
-                                    content: const Text(
-                                      'Are you sure you want to delete this payment?\n'
-                                      'The invoice paid amount and status will be updated.',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pop(context, false);
-                                        },
-                                        child: const Text('Cancel'),
-                                      ),
-                                      FilledButton.icon(
-                                        onPressed: () {
-                                          Navigator.pop(context, true);
-                                        },
-                                        icon: const Icon(Icons.delete_outline),
-                                        label: const Text('Delete Payment'),
-                                      ),
-                                    ],
-                                  );
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Edit payment button.
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                tooltip: 'Edit Payment',
+                                onPressed: () {
+                                  Navigator.pop(context);
+
+                                  _showEditPaymentDialog(invoice, payment);
                                 },
-                              );
+                              ),
 
-                              if (shouldDelete != true) {
-                                return;
-                              }
+                              // Delete payment button.
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Delete Payment',
+                                onPressed: () async {
+                                  final shouldDelete = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) {
+                                      return AlertDialog(
+                                        title: const Text('Delete Payment?'),
+                                        content: const Text(
+                                          'Are you sure you want to delete this payment?\n'
+                                          'The invoice paid amount and status will be updated.',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(context, false);
+                                            },
+                                            child: const Text('Cancel'),
+                                          ),
+                                          FilledButton.icon(
+                                            onPressed: () {
+                                              Navigator.pop(context, true);
+                                            },
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            label: const Text('Delete Payment'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
 
-                              try {
-                                await DatabaseHelper.deletePayment(
-                                  payment['id'] as int,
-                                );
+                                  if (shouldDelete != true) {
+                                    return;
+                                  }
 
-                                final updatedPaidAmount =
-                                    await DatabaseHelper.getInvoicePaidAmount(
-                                      invoice['id'] as int,
+                                  try {
+                                    await DatabaseHelper.deletePayment(
+                                      payment['id'] as int,
                                     );
 
-                                final invoiceTotal =
-                                    (invoice['grand_total'] as num).toDouble();
+                                    final updatedPaidAmount =
+                                        await DatabaseHelper.getInvoicePaidAmount(
+                                          invoice['id'] as int,
+                                        );
 
-                                String newStatus;
+                                    final invoiceTotal =
+                                        (invoice['grand_total'] as num)
+                                            .toDouble();
 
-                                if (updatedPaidAmount <= 0) {
-                                  newStatus = 'Draft';
-                                } else if (updatedPaidAmount >= invoiceTotal) {
-                                  newStatus = 'Paid';
-                                } else {
-                                  newStatus = 'Partially Paid';
-                                }
+                                    String newStatus;
 
-                                await DatabaseHelper.updateInvoiceStatus(
-                                  invoice['id'] as int,
-                                  newStatus,
-                                );
+                                    if (updatedPaidAmount <= 0) {
+                                      newStatus = 'Draft';
+                                    } else if (updatedPaidAmount >=
+                                        invoiceTotal) {
+                                      newStatus = 'Paid';
+                                    } else {
+                                      newStatus = 'Partially Paid';
+                                    }
 
-                                if (!mounted) return;
+                                    await DatabaseHelper.updateInvoiceStatus(
+                                      invoice['id'] as int,
+                                      newStatus,
+                                    );
 
-                                Navigator.pop(context);
+                                    if (!mounted) return;
 
-                                await _loadInvoices();
+                                    Navigator.pop(context);
 
-                                if (!mounted) return;
+                                    await _loadInvoices();
 
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Payment deleted successfully.',
-                                    ),
-                                  ),
-                                );
+                                    if (!mounted) return;
 
-                                // Re-open updated invoice details.
-                                _showInvoiceDetails(invoice);
-                              } catch (e) {
-                                if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Payment deleted successfully.',
+                                        ),
+                                      ),
+                                    );
 
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Failed to delete payment: $e',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
+                                    _showInvoiceDetails(invoice);
+                                  } catch (e) {
+                                    if (!mounted) return;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Failed to delete payment: $e',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -2435,6 +2455,278 @@ class _InvoicePageState extends State<InvoicePage> {
                   },
                   icon: const Icon(Icons.save),
                   label: const Text('Save Payment'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showEditPaymentDialog(
+    Map<String, dynamic> invoice,
+    Map<String, dynamic> payment,
+  ) async {
+    final amountController = TextEditingController(
+      text: (payment['amount'] as num).toString(),
+    );
+
+    final noteController = TextEditingController(
+      text: payment['note']?.toString() ?? '',
+    );
+
+    DateTime selectedPaymentDate =
+        DateTime.tryParse(payment['payment_date']?.toString() ?? '') ??
+        DateTime.now();
+
+    String selectedPaymentMethod =
+        payment['payment_method']?.toString() ?? 'Cash';
+
+    final invoiceTotal = (invoice['grand_total'] as num).toDouble();
+
+    final paidAmount = await DatabaseHelper.getInvoicePaidAmount(
+      invoice['id'] as int,
+    );
+
+    // Remove the current payment from the paid amount.
+    // This gives us the maximum amount allowed for the edited payment.
+    final currentPaymentAmount = (payment['amount'] as num).toDouble();
+
+    final paidWithoutCurrentPayment = paidAmount - currentPaymentAmount;
+
+    final maximumPaymentAmount = invoiceTotal - paidWithoutCurrentPayment;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.edit_outlined),
+                  SizedBox(width: 10),
+                  Text('Edit Payment'),
+                ],
+              ),
+
+              content: SizedBox(
+                width: 450,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _invoiceSummaryRow('Invoice Total', invoiceTotal),
+
+                      _invoiceSummaryRow(
+                        'Paid Before This Payment',
+                        paidWithoutCurrentPayment,
+                      ),
+
+                      _invoiceSummaryRow(
+                        'Maximum Payment',
+                        maximumPaymentAmount,
+                        isGrandTotal: true,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      const Divider(),
+
+                      const SizedBox(height: 15),
+
+                      TextField(
+                        controller: amountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Amount',
+                          hintText: 'Enter payment amount',
+                          prefixIcon: Icon(Icons.attach_money),
+                          prefixText: 'Rs. ',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      InkWell(
+                        onTap: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: selectedPaymentDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+
+                          if (pickedDate != null) {
+                            setDialogState(() {
+                              selectedPaymentDate = pickedDate;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Payment Date',
+                            prefixIcon: Icon(Icons.calendar_today),
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            '${selectedPaymentDate.day.toString().padLeft(2, '0')}/'
+                            '${selectedPaymentDate.month.toString().padLeft(2, '0')}/'
+                            '${selectedPaymentDate.year}',
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedPaymentMethod,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment Method',
+                          prefixIcon: Icon(Icons.account_balance_wallet),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                          DropdownMenuItem(value: 'Card', child: Text('Card')),
+                          DropdownMenuItem(
+                            value: 'Bank Transfer',
+                            child: Text('Bank Transfer'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Other',
+                            child: Text('Other'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+
+                          setDialogState(() {
+                            selectedPaymentMethod = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      TextField(
+                        controller: noteController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Note (Optional)',
+                          hintText: 'Add a payment note',
+                          prefixIcon: Icon(Icons.note_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+
+                FilledButton.icon(
+                  onPressed: () async {
+                    final amount =
+                        double.tryParse(amountController.text.trim()) ?? 0;
+
+                    if (amount <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Payment amount must be greater than 0.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (amount > maximumPaymentAmount) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Payment cannot exceed '
+                            'Rs. ${maximumPaymentAmount.toStringAsFixed(2)}.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final updatedPayment = {
+                      'amount': amount,
+                      'payment_date': selectedPaymentDate.toIso8601String(),
+                      'payment_method': selectedPaymentMethod,
+                      'note': noteController.text.trim().isEmpty
+                          ? null
+                          : noteController.text.trim(),
+                    };
+
+                    try {
+                      await DatabaseHelper.updatePayment(
+                        payment['id'] as int,
+                        updatedPayment,
+                      );
+
+                      final updatedPaidAmount =
+                          await DatabaseHelper.getInvoicePaidAmount(
+                            invoice['id'] as int,
+                          );
+
+                      String newStatus;
+
+                      if (updatedPaidAmount <= 0) {
+                        newStatus = 'Draft';
+                      } else if (updatedPaidAmount >= invoiceTotal) {
+                        newStatus = 'Paid';
+                      } else {
+                        newStatus = 'Partially Paid';
+                      }
+
+                      await DatabaseHelper.updateInvoiceStatus(
+                        invoice['id'] as int,
+                        newStatus,
+                      );
+
+                      if (!mounted) return;
+
+                      Navigator.pop(context);
+
+                      await _loadInvoices();
+
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Payment updated successfully.'),
+                        ),
+                      );
+
+                      _showInvoiceDetails(invoice);
+                    } catch (e) {
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to update payment: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text('Save Changes'),
                 ),
               ],
             );

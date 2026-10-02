@@ -366,4 +366,19 @@ class DatabaseHelper {
 
     await db.delete('payments', where: 'id = ?', whereArgs: [paymentId]);
   }
+
+  // Update an existing payment
+  static Future<void> updatePayment(
+    int paymentId,
+    Map<String, dynamic> payment,
+  ) async {
+    final db = await database;
+
+    await db.update(
+      'payments',
+      payment,
+      where: 'id = ?',
+      whereArgs: [paymentId],
+    );
+  }
 }
