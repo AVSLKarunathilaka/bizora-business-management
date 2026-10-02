@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-
 import '../../db/database_helper.dart';
+import '../../service/invoice_pdf_service.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
 
 class InvoicePage extends StatefulWidget {
   const InvoicePage({super.key});
@@ -45,6 +48,8 @@ class _InvoicePageState extends State<InvoicePage> {
 
     // Default invoice date.
     DateTime selectedDate = DateTime.now();
+    //default due date invice date--->30dys
+    DateTime selectedDueDate = DateTime.now().add(const Duration(days: 30));
 
     // Invoice item controllers.
     final itemDescriptionController = TextEditingController();
@@ -149,31 +154,34 @@ class _InvoicePageState extends State<InvoicePage> {
                       const SizedBox(height: 18),
 
                       // Invoice date picker.
+                      const SizedBox(height: 18),
+
+                      // Due date picker.
                       InkWell(
                         onTap: () async {
-                          final pickedDate = await showDatePicker(
+                          final pickedDueDate = await showDatePicker(
                             context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2020),
+                            initialDate: selectedDueDate,
+                            firstDate: selectedDate,
                             lastDate: DateTime(2100),
                           );
 
-                          if (pickedDate != null) {
+                          if (pickedDueDate != null) {
                             setDialogState(() {
-                              selectedDate = pickedDate;
+                              selectedDueDate = pickedDueDate;
                             });
                           }
                         },
                         child: InputDecorator(
                           decoration: const InputDecoration(
-                            labelText: 'Invoice Date',
-                            prefixIcon: Icon(Icons.calendar_today),
+                            labelText: 'Due Date',
+                            prefixIcon: Icon(Icons.event_available),
                             border: OutlineInputBorder(),
                           ),
                           child: Text(
-                            '${selectedDate.day.toString().padLeft(2, '0')}/'
-                            '${selectedDate.month.toString().padLeft(2, '0')}/'
-                            '${selectedDate.year}',
+                            '${selectedDueDate.day.toString().padLeft(2, '0')}/'
+                            '${selectedDueDate.month.toString().padLeft(2, '0')}/'
+                            '${selectedDueDate.year}',
                           ),
                         ),
                       ),
@@ -654,6 +662,7 @@ class _InvoicePageState extends State<InvoicePage> {
                       'invoice_number': invoiceNumberController.text.trim(),
                       'customer_id': selectedCustomerId!,
                       'invoice_date': selectedDate.toIso8601String(),
+                      'due_date': selectedDueDate.toIso8601String(),
                       'subtotal': subtotal,
                       'discount': discount,
                       'tax_percent': taxPercent,
@@ -722,6 +731,50 @@ class _InvoicePageState extends State<InvoicePage> {
 
   Future<void> _loadInvoices() async {
     final data = await DatabaseHelper.getInvoices();
+
+    // Automatically mark unpaid invoices as overdue.
+    for (final invoice in data) {
+      final dueDateString = invoice['due_date']?.toString();
+
+      if (dueDateString == null || dueDateString.isEmpty) {
+        continue;
+      }
+
+      final dueDate = DateTime.tryParse(dueDateString);
+
+      if (dueDate == null) {
+        continue;
+      }
+
+      final grandTotal = (invoice['grand_total'] as num?)?.toDouble() ?? 0;
+
+      final paidAmount = await DatabaseHelper.getInvoicePaidAmount(
+        invoice['id'] as int,
+      );
+
+      final currentStatus = invoice['status']?.toString() ?? 'Draft';
+
+      // Remove time from today's date for accurate comparison.
+      final today = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      );
+
+      final invoiceDueDate = DateTime(dueDate.year, dueDate.month, dueDate.day);
+
+      if (invoiceDueDate.isBefore(today) &&
+          paidAmount < grandTotal &&
+          currentStatus != 'Cancelled' &&
+          currentStatus != 'Paid') {
+        await DatabaseHelper.updateInvoiceStatus(
+          invoice['id'] as int,
+          'Overdue',
+        );
+
+        invoice['status'] = 'Overdue';
+      }
+    }
 
     if (!mounted) return;
 
@@ -822,6 +875,10 @@ class _InvoicePageState extends State<InvoicePage> {
     // Existing invoice date.
     DateTime selectedDate =
         DateTime.tryParse(invoice['invoice_date'].toString()) ?? DateTime.now();
+
+    DateTime selectedDueDate =
+        DateTime.tryParse(invoice['due_date']?.toString() ?? '') ??
+        DateTime.now().add(const Duration(days: 30));
 
     // New item controllers.
     final itemDescriptionController = TextEditingController();
@@ -968,6 +1025,37 @@ class _InvoicePageState extends State<InvoicePage> {
                             '${selectedDate.day.toString().padLeft(2, '0')}/'
                             '${selectedDate.month.toString().padLeft(2, '0')}/'
                             '${selectedDate.year}',
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      InkWell(
+                        onTap: () async {
+                          final pickedDueDate = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDueDate,
+                            firstDate: selectedDate,
+                            lastDate: DateTime(2100),
+                          );
+
+                          if (pickedDueDate != null) {
+                            setDialogState(() {
+                              selectedDueDate = pickedDueDate;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Due Date',
+                            prefixIcon: Icon(Icons.event_available),
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            '${selectedDueDate.day.toString().padLeft(2, '0')}/'
+                            '${selectedDueDate.month.toString().padLeft(2, '0')}/'
+                            '${selectedDueDate.year}',
                           ),
                         ),
                       ),
@@ -1375,6 +1463,7 @@ class _InvoicePageState extends State<InvoicePage> {
                       'invoice_number': invoiceNumberController.text.trim(),
                       'customer_id': selectedCustomerId!,
                       'invoice_date': selectedDate.toIso8601String(),
+                      'due_date': selectedDueDate.toIso8601String(),
                       'subtotal': subtotal,
                       'discount': discount,
                       'tax_percent': taxPercent,
@@ -1436,6 +1525,48 @@ class _InvoicePageState extends State<InvoicePage> {
     );
   }
 
+  //==========================================================
+  //PDF genartor
+  //=========================================================
+
+  Future<void> _generateInvoicePdf(Map<String, dynamic> invoice) async {
+    try {
+      final items = await DatabaseHelper.getInvoiceItems(invoice['id'] as int);
+
+      final paidAmount = await DatabaseHelper.getInvoicePaidAmount(
+        invoice['id'] as int,
+      );
+
+      final pdfBytes = await InvoicePdfService.generateInvoicePdf(
+        invoice: invoice,
+        items: items,
+        paidAmount: paidAmount,
+      );
+
+      final directory = await getApplicationDocumentsDirectory();
+
+      final invoiceNumber = invoice['invoice_number']?.toString() ?? 'invoice';
+
+      final file = File('${directory.path}\\$invoiceNumber.pdf');
+
+      await file.writeAsBytes(pdfBytes);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invoice PDF saved successfully:\n${file.path}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to generate PDF: $e')));
+    }
+  }
+
   // ============================================================
   // INVOICE DETAILS
   // ============================================================
@@ -1481,6 +1612,15 @@ class _InvoicePageState extends State<InvoicePage> {
                 icon: const Icon(Icons.payment_outlined),
                 label: const Text('Add Payment'),
               ),
+              const SizedBox(width: 10),
+
+              ElevatedButton.icon(
+                onPressed: () {
+                  _generateInvoicePdf(invoice);
+                },
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Export PDF'),
+              ),
             ],
           ),
 
@@ -1509,8 +1649,15 @@ class _InvoicePageState extends State<InvoicePage> {
                   const SizedBox(height: 5),
 
                   Text(
-                    'Date: '
+                    'Invoice Date: '
                     '${invoice['invoice_date'].toString().split('T').first}',
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    'Due Date: '
+                    '${invoice['due_date'] != null ? invoice['due_date'].toString().split('T').first : '-'}',
                   ),
 
                   const SizedBox(height: 5),
@@ -2122,6 +2269,28 @@ class _InvoicePageState extends State<InvoicePage> {
                         itemBuilder: (context, index) {
                           final invoice = filteredInvoices[index];
 
+                          final dueDateString = invoice['due_date']?.toString();
+
+                          final dueDate = dueDateString != null
+                              ? DateTime.tryParse(dueDateString)
+                              : null;
+
+                          final today = DateTime(
+                            DateTime.now().year,
+                            DateTime.now().month,
+                            DateTime.now().day,
+                          );
+
+                          final isOverdue =
+                              dueDate != null &&
+                              DateTime(
+                                dueDate.year,
+                                dueDate.month,
+                                dueDate.day,
+                              ).isBefore(today) &&
+                              invoice['status'] != 'Paid' &&
+                              invoice['status'] != 'Cancelled';
+
                           return ListTile(
                             // Invoice icon.
                             leading: const CircleAvatar(
@@ -2152,13 +2321,43 @@ class _InvoicePageState extends State<InvoicePage> {
                             },
 
                             // Grand total.
-                            trailing: Text(
-                              'Rs. '
-                              '${double.parse(invoice['grand_total'].toString()).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'Rs. '
+                                  '${double.parse(invoice['grand_total'].toString()).toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: isOverdue ? Colors.red : null,
+                                  ),
+                                ),
+
+                                if (isOverdue) ...[
+                                  const SizedBox(height: 4),
+
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'OVERDUE',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           );
                         },

@@ -23,7 +23,7 @@ class InvoiceExpenseApp extends StatelessWidget {
 
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: const Color.fromARGB(255, 0, 129, 209),
+        colorSchemeSeed: const Color.fromARGB(255, 100, 249, 1)
       ),
 
       home: const DashboardScreen(),
