@@ -258,25 +258,17 @@ class DatabaseHelper {
   // ================================================================
 
   // Add customer
-  static Future<int> insertCustomer(
-    Map<String, dynamic> customer,
-  ) async {
+  static Future<int> insertCustomer(Map<String, dynamic> customer) async {
     final db = await database;
 
-    return await db.insert(
-      'customers',
-      customer,
-    );
+    return await db.insert('customers', customer);
   }
 
   // Get all customers
   static Future<List<Map<String, dynamic>>> getCustomers() async {
     final db = await database;
 
-    return await db.query(
-      'customers',
-      orderBy: 'id DESC',
-    );
+    return await db.query('customers', orderBy: 'id DESC');
   }
 
   // Update customer
@@ -298,11 +290,7 @@ class DatabaseHelper {
   static Future<int> deleteCustomer(int id) async {
     final db = await database;
 
-    return await db.delete(
-      'customers',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('customers', where: 'id = ?', whereArgs: [id]);
   }
 
   // Check if phone number already exists
@@ -360,27 +348,17 @@ class DatabaseHelper {
   // ================================================================
 
   // Insert invoice
-  static Future<int> insertInvoice(
-    Map<String, dynamic> invoice,
-  ) async {
+  static Future<int> insertInvoice(Map<String, dynamic> invoice) async {
     final db = await database;
 
-    return await db.insert(
-      'invoices',
-      invoice,
-    );
+    return await db.insert('invoices', invoice);
   }
 
   // Insert invoice item
-  static Future<int> insertInvoiceItem(
-    Map<String, dynamic> item,
-  ) async {
+  static Future<int> insertInvoiceItem(Map<String, dynamic> item) async {
     final db = await database;
 
-    return await db.insert(
-      'invoice_items',
-      item,
-    );
+    return await db.insert('invoice_items', item);
   }
 
   // Get all invoices
@@ -422,20 +400,11 @@ class DatabaseHelper {
 
     return await db.transaction((txn) async {
       // Insert invoice
-      final invoiceId = await txn.insert(
-        'invoices',
-        invoice,
-      );
+      final invoiceId = await txn.insert('invoices', invoice);
 
       // Insert invoice items
       for (final item in items) {
-        await txn.insert(
-          'invoice_items',
-          {
-            ...item,
-            'invoice_id': invoiceId,
-          },
-        );
+        await txn.insert('invoice_items', {...item, 'invoice_id': invoiceId});
       }
 
       return invoiceId;
@@ -443,27 +412,19 @@ class DatabaseHelper {
   }
 
   // Update only the status of an existing invoice
-  static Future<void> updateInvoiceStatus(
-    int invoiceId,
-    String status,
-  ) async {
+  static Future<void> updateInvoiceStatus(int invoiceId, String status) async {
     final db = await database;
 
     await db.update(
       'invoices',
-      {
-        'status': status,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
+      {'status': status, 'updated_at': DateTime.now().toIso8601String()},
       where: 'id = ?',
       whereArgs: [invoiceId],
     );
   }
 
   // Delete invoice
-  static Future<void> deleteInvoice(
-    int invoiceId,
-  ) async {
+  static Future<void> deleteInvoice(int invoiceId) async {
     final db = await database;
 
     await db.transaction((txn) async {
@@ -473,11 +434,7 @@ class DatabaseHelper {
         whereArgs: [invoiceId],
       );
 
-      await txn.delete(
-        'invoices',
-        where: 'id = ?',
-        whereArgs: [invoiceId],
-      );
+      await txn.delete('invoices', where: 'id = ?', whereArgs: [invoiceId]);
     });
   }
 
@@ -504,13 +461,7 @@ class DatabaseHelper {
       );
 
       for (final item in items) {
-        await txn.insert(
-          'invoice_items',
-          {
-            ...item,
-            'invoice_id': invoiceId,
-          },
-        );
+        await txn.insert('invoice_items', {...item, 'invoice_id': invoiceId});
       }
     });
   }
@@ -520,15 +471,10 @@ class DatabaseHelper {
   // ================================================================
 
   // Add a new payment
-  static Future<int> insertPayment(
-    Map<String, dynamic> payment,
-  ) async {
+  static Future<int> insertPayment(Map<String, dynamic> payment) async {
     final db = await database;
 
-    return await db.insert(
-      'payments',
-      payment,
-    );
+    return await db.insert('payments', payment);
   }
 
   // Get all payments belonging to one invoice
@@ -546,9 +492,7 @@ class DatabaseHelper {
   }
 
   // Get total amount already paid for an invoice
-  static Future<double> getInvoicePaidAmount(
-    int invoiceId,
-  ) async {
+  static Future<double> getInvoicePaidAmount(int invoiceId) async {
     final db = await database;
 
     final result = await db.rawQuery(
@@ -564,16 +508,10 @@ class DatabaseHelper {
   }
 
   // Delete a payment
-  static Future<void> deletePayment(
-    int paymentId,
-  ) async {
+  static Future<void> deletePayment(int paymentId) async {
     final db = await database;
 
-    await db.delete(
-      'payments',
-      where: 'id = ?',
-      whereArgs: [paymentId],
-    );
+    await db.delete('payments', where: 'id = ?', whereArgs: [paymentId]);
   }
 
   // Update an existing payment
@@ -599,10 +537,7 @@ class DatabaseHelper {
   static Future<Map<String, dynamic>?> getBusinessSettings() async {
     final db = await database;
 
-    final result = await db.query(
-      'business_settings',
-      limit: 1,
-    );
+    final result = await db.query('business_settings', limit: 1);
 
     if (result.isEmpty) {
       return null;
@@ -617,16 +552,10 @@ class DatabaseHelper {
   ) async {
     final db = await database;
 
-    final existing = await db.query(
-      'business_settings',
-      limit: 1,
-    );
+    final existing = await db.query('business_settings', limit: 1);
 
     if (existing.isEmpty) {
-      await db.insert(
-        'business_settings',
-        settings,
-      );
+      await db.insert('business_settings', settings);
     } else {
       await db.update(
         'business_settings',
@@ -686,14 +615,33 @@ class DatabaseHelper {
   }
 
   // Add expense
-  static Future<int> insertExpense(
-    Map<String, dynamic> expense,
-  ) async {
+  static Future<int> insertExpense(Map<String, dynamic> expense) async {
     final db = await database;
 
-    return await db.insert(
-      'expenses',
-      expense,
-    );
+    return await db.insert('expenses', expense);
   }
+
+  // ------------------------------------------------------------
+  // Get Expenses
+  // ------------------------------------------------------------
+
+  static Future<List<Map<String, dynamic>>> getExpenses() async {
+    final db = await database;
+
+    return await db.query('expenses', orderBy: 'expense_date DESC, id DESC');
+  }
+
+  // ------------------------------------------------------------
+// Delete Expense
+// ------------------------------------------------------------
+
+static Future<int> deleteExpense(int id) async {
+  final db = await database;
+
+  return await db.delete(
+    'expenses',
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
 }

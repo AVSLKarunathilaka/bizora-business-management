@@ -155,13 +155,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ListTile(
               leading: const Icon(Icons.money_off),
               title: const Text('Expenses'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
 
-                Navigator.push(
+                await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const ExpensePage()),
                 );
+
+                // Refresh recent expenses when returning
+                _loadRecentData();
               },
             ),
 
