@@ -632,16 +632,18 @@ class DatabaseHelper {
   }
 
   // ------------------------------------------------------------
-// Delete Expense
-// ------------------------------------------------------------
+  // Delete Expense
+  // ------------------------------------------------------------
 
-static Future<int> deleteExpense(int id) async {
-  final db = await database;
+  static Future<int> deleteExpense(int id) async {
+    final db = await database;
 
-  return await db.delete(
-    'expenses',
-    where: 'id = ?',
-    whereArgs: [id],
-  );
-}
+    return await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<int> updateExpense(int id, Map<String, dynamic> data) async {
+    final db = await database;
+
+    return await db.update('expenses', data, where: 'id = ?', whereArgs: [id]);
+  }
 }

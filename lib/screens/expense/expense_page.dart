@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../../db/database_helper.dart';
 
-/// Expense management page.
-///
-/// This page currently provides the expense entry form.
-/// Database saving will be connected separately.
 class ExpensePage extends StatefulWidget {
   const ExpensePage({super.key});
 
@@ -14,49 +9,17 @@ class ExpensePage extends StatefulWidget {
 }
 
 class _ExpensePageState extends State<ExpensePage> {
-  // ------------------------------------------------------------
-  // Form & Text Controllers
-  // ------------------------------------------------------------
+  List<Map<String, dynamic>> expenses = [];
+  List<Map<String, dynamic>> filteredExpenses = [];
 
-  // Used to validate the entire expense form.
-  final _formKey = GlobalKey<FormState>();
+  bool isLoadingExpenses = true;
 
-  // Controllers for user-entered values.
-  final _titleController = TextEditingController();
-  final _amountController = TextEditingController();
-  final _noteController = TextEditingController();
-  final _searchController = TextEditingController();
+  String expenseSearchQuery = '';
+  String selectedCategory = 'All';
+  String selectedPaymentMethod = 'All';
 
-  // ------------------------------------------------------------
-  // Selected Dropdown & Date Values
-  // ------------------------------------------------------------
-
-  // Default expense category.
-  String _selectedCategory = 'Other';
-
-  // Default payment method.
-  String _selectedPaymentMethod = 'Cash';
-
-  // ------------------------------------------------------------
-  // Expense List State
-  // ------------------------------------------------------------
-
-  List<Map<String, dynamic>> _expenses = [];
-
-  bool _isLoadingExpenses = true;
-  String _searchQuery = '';
-  String _selectedFilterCategory = 'All';
-  String _selectedFilterPaymentMethod = 'All';
-
-  // Default expense date is today's date.
-  DateTime _selectedDate = DateTime.now();
-
-  // ------------------------------------------------------------
-  // Expense Categories
-  // ------------------------------------------------------------
-
-  // Available expense categories.
-  final List<String> _categories = [
+  final List<String> categories = [
+    'All',
     'Rent',
     'Utilities',
     'Transport',
@@ -67,12 +30,8 @@ class _ExpensePageState extends State<ExpensePage> {
     'Other',
   ];
 
-  // ------------------------------------------------------------
-  // Payment Methods
-  // ------------------------------------------------------------
-
-  // Available payment methods.
-  final List<String> _paymentMethods = [
+  final List<String> paymentMethods = [
+    'All',
     'Cash',
     'Bank Transfer',
     'Card',
@@ -82,117 +41,91 @@ class _ExpensePageState extends State<ExpensePage> {
   @override
   void initState() {
     super.initState();
-
     _loadExpenses();
   }
 
-  // ------------------------------------------------------------
-  // Dispose Controllers
-  // ------------------------------------------------------------
+  // =========================
+  // LOAD EXPENSES
+  // =========================
 
-  @override
-  void dispose() {
-    // Always dispose controllers when the page is removed.
-    _titleController.dispose();
-    _amountController.dispose();
-    _noteController.dispose();
-    _searchController.dispose();
-
-    super.dispose();
-  }
-
-  // ------------------------------------------------------------
-  // Date Picker
-  // ------------------------------------------------------------
-
-  /// Opens the date picker and allows the user to select
-  /// the date of the expense.
-  Future<void> _selectDate() async {
-    final pickedDate = await showDatePicker(
-      context: context,
-
-      // Currently selected date.
-      initialDate: _selectedDate,
-
-      // Allow expenses from the year 2000 onwards.
-      firstDate: DateTime(2000),
-
-      // Allow dates up to the year 2100.
-      lastDate: DateTime(2100),
-    );
-
-    // Update the selected date if the user selected one.
-    if (pickedDate != null) {
-      setState(() {
-        _selectedDate = pickedDate;
-      });
-    }
-  }
-
-  // ------------------------------------------------------------
-  // Load Expenses
-  // ------------------------------------------------------------
-
-  /// Loads all saved expenses from SQLite.
   Future<void> _loadExpenses() async {
     try {
-      final expenses = await DatabaseHelper.getExpenses();
+      final data = await DatabaseHelper.getExpenses();
 
       if (!mounted) return;
 
       setState(() {
-        _expenses = expenses;
-        _isLoadingExpenses = false;
+        expenses = data;
+        isLoadingExpenses = false;
       });
+
+      _applyFilters();
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _isLoadingExpenses = false;
+        isLoadingExpenses = false;
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to load expenses: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load expenses: $e'),
+        ),
+      );
     }
   }
 
-  // ------------------------------------------------------------
-  // Filter Expenses
-  // ------------------------------------------------------------
+  // =========================
+  // FILTERS
+  // =========================
 
-  List<Map<String, dynamic>> get _filteredExpenses {
-    final query = _searchQuery.trim().toLowerCase();
+  void _applyFilters() {
+    final query = expenseSearchQuery.toLowerCase().trim();
 
-    return _expenses.where((expense) {
-      final title = expense['title']?.toString().toLowerCase() ?? '';
-      final category = expense['category']?.toString().toLowerCase() ?? '';
-      final paymentMethod =
-          expense['payment_method']?.toString().toLowerCase() ?? '';
+    setState(() {
+      filteredExpenses = expenses.where((expense) {
+        final title =
+            expense['title']?.toString().toLowerCase() ?? '';
 
-      // Search filter
-      final matchesSearch =
-          query.isEmpty ||
-          title.contains(query) ||
-          category.contains(query) ||
-          paymentMethod.contains(query);
+        final category =
+            expense['category']?.toString() ?? '';
 
-      // Category filter
-      final matchesCategory =
-          _selectedFilterCategory == 'All' ||
-          expense['category']?.toString() == _selectedFilterCategory;
+        final paymentMethod =
+            expense['payment_method']?.toString() ?? '';
 
-      // Payment method filter
-      final matchesPaymentMethod =
-          _selectedFilterPaymentMethod == 'All' ||
-          expense['payment_method']?.toString() == _selectedFilterPaymentMethod;
+        final note =
+            expense['note']?.toString().toLowerCase() ?? '';
 
-      return matchesSearch && matchesCategory && matchesPaymentMethod;
-    }).toList();
+        final matchesSearch =
+            query.isEmpty ||
+            title.contains(query) ||
+            category.toLowerCase().contains(query) ||
+            paymentMethod.toLowerCase().contains(query) ||
+            note.contains(query);
+
+        final matchesCategory =
+            selectedCategory == 'All' ||
+            category == selectedCategory;
+
+        final matchesPaymentMethod =
+            selectedPaymentMethod == 'All' ||
+            paymentMethod == selectedPaymentMethod;
+
+        return matchesSearch &&
+            matchesCategory &&
+            matchesPaymentMethod;
+      }).toList();
+    });
   }
 
-  // ------------------------------------------------------------
-  // Expense Category Icon
-  // ------------------------------------------------------------
+  void _searchExpenses(String value) {
+    expenseSearchQuery = value;
+    _applyFilters();
+  }
+
+  // =========================
+  // ICON
+  // =========================
 
   IconData _getExpenseIcon(String category) {
     switch (category) {
@@ -200,7 +133,7 @@ class _ExpensePageState extends State<ExpensePage> {
         return Icons.home_work_outlined;
 
       case 'Utilities':
-        return Icons.electrical_services;
+        return Icons.lightbulb_outline;
 
       case 'Transport':
         return Icons.directions_car_outlined;
@@ -222,30 +155,791 @@ class _ExpensePageState extends State<ExpensePage> {
     }
   }
 
-  // ------------------------------------------------------------
-  // Delete Expense
-  // ------------------------------------------------------------
+  // =========================
+  // DATE FORMAT
+  // =========================
 
-  Future<void> _deleteExpense(Map<String, dynamic> expense) async {
-    final expenseId = expense['id'] as int;
-    final expenseTitle = expense['title']?.toString() ?? 'this expense';
+  String _formatDate(String? date) {
+    if (date == null || date.isEmpty) {
+      return '-';
+    }
 
-    final shouldDelete = await showDialog<bool>(
+    try {
+      final parsedDate = DateTime.parse(date);
+
+      return '${parsedDate.day.toString().padLeft(2, '0')}/'
+          '${parsedDate.month.toString().padLeft(2, '0')}/'
+          '${parsedDate.year}';
+    } catch (_) {
+      return date;
+    }
+  }
+
+  // =========================
+  // SUMMARY
+  // =========================
+
+  double get _totalExpenses {
+    return expenses.fold<double>(
+      0,
+      (sum, expense) =>
+          sum + ((expense['amount'] as num?)?.toDouble() ?? 0),
+    );
+  }
+
+  double get _todayExpenses {
+    final now = DateTime.now();
+
+    return expenses.fold<double>(
+      0,
+      (sum, expense) {
+        final dateString = expense['expense_date']?.toString();
+
+        if (dateString == null) {
+          return sum;
+        }
+
+        try {
+          final date = DateTime.parse(dateString);
+
+          if (date.year == now.year &&
+              date.month == now.month &&
+              date.day == now.day) {
+            return sum +
+                ((expense['amount'] as num?)?.toDouble() ?? 0);
+          }
+        } catch (_) {}
+
+        return sum;
+      },
+    );
+  }
+
+  double get _thisMonthExpenses {
+    final now = DateTime.now();
+
+    return expenses.fold<double>(
+      0,
+      (sum, expense) {
+        final dateString = expense['expense_date']?.toString();
+
+        if (dateString == null) {
+          return sum;
+        }
+
+        try {
+          final date = DateTime.parse(dateString);
+
+          if (date.year == now.year &&
+              date.month == now.month) {
+            return sum +
+                ((expense['amount'] as num?)?.toDouble() ?? 0);
+          }
+        } catch (_) {}
+
+        return sum;
+      },
+    );
+  }
+
+  // =========================
+  // CREATE EXPENSE
+  // =========================
+
+  Future<void> _showCreateExpenseDialog() async {
+    final titleController = TextEditingController();
+    final amountController = TextEditingController();
+    final noteController = TextEditingController();
+
+    String selectedCategoryValue = 'Rent';
+    String selectedPaymentMethodValue = 'Cash';
+    DateTime selectedDate = DateTime.now();
+
+    await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: const [
+                  Icon(Icons.add_business_outlined),
+                  SizedBox(width: 10),
+                  Text('Create Expense'),
+                ],
+              ),
+              content: SizedBox(
+                width: 550,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Expense Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      TextField(
+                        controller: titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Expense Title',
+                          hintText: 'Enter expense title',
+                          prefixIcon:
+                              const Icon(Icons.title),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      DropdownButtonFormField<String>(
+                        value: selectedCategoryValue,
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          prefixIcon:
+                              const Icon(Icons.category_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                        items: categories
+                            .where((category) =>
+                                category != 'All')
+                            .map(
+                              (category) =>
+                                  DropdownMenuItem<String>(
+                                value: category,
+                                child: Text(category),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+
+                          setDialogState(() {
+                            selectedCategoryValue = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      TextField(
+                        controller: amountController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Amount',
+                          hintText: '0.00',
+                          prefixIcon:
+                              const Icon(Icons.payments_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      DropdownButtonFormField<String>(
+                        value: selectedPaymentMethodValue,
+                        decoration: InputDecoration(
+                          labelText: 'Payment Method',
+                          prefixIcon:
+                              const Icon(Icons.account_balance_wallet_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                        items: paymentMethods
+                            .where((method) =>
+                                method != 'All')
+                            .map(
+                              (method) =>
+                                  DropdownMenuItem<String>(
+                                value: method,
+                                child: Text(method),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+
+                          setDialogState(() {
+                            selectedPaymentMethodValue =
+                                value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      const Text(
+                        'Expense Date',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      InkWell(
+                        onTap: () async {
+                          final pickedDate =
+                              await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+
+                          if (pickedDate != null) {
+                            setDialogState(() {
+                              selectedDate = pickedDate;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(
+                              Icons.calendar_today_outlined,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            _formatDate(
+                              selectedDate
+                                  .toIso8601String(),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      TextField(
+                        controller: noteController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Note',
+                          hintText:
+                              'Optional additional information',
+                          prefixIcon:
+                              const Icon(Icons.notes_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel'),
+                ),
+
+                FilledButton.icon(
+                  onPressed: () async {
+                    final title =
+                        titleController.text.trim();
+
+                    final amountText =
+                        amountController.text.trim();
+
+                    final note =
+                        noteController.text.trim();
+
+                    if (title.isEmpty) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enter an expense title',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final amount =
+                        double.tryParse(amountText);
+
+                    if (amount == null || amount <= 0) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enter a valid amount',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      await DatabaseHelper.insertExpense({
+                        'title': title,
+                        'category':
+                            selectedCategoryValue,
+                        'amount': amount,
+                        'expense_date':
+                            selectedDate
+                                .toIso8601String(),
+                        'payment_method':
+                            selectedPaymentMethodValue,
+                        'note':
+                            note.isEmpty ? null : note,
+                        'created_at':
+                            DateTime.now()
+                                .toIso8601String(),
+                      });
+
+                      if (!mounted) return;
+
+                      Navigator.pop(dialogContext);
+
+                      await _loadExpenses();
+
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Expense created successfully',
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Failed to create expense: $e',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text('Create Expense'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    // IMPORTANT:
+    // Dispose only after the dialog is completely closed.
+    titleController.dispose();
+    amountController.dispose();
+    noteController.dispose();
+  }
+
+  // =========================
+  // EDIT EXPENSE
+  // =========================
+
+  Future<void> _showEditExpenseDialog(
+    Map<String, dynamic> expense,
+  ) async {
+    final titleController = TextEditingController(
+      text: expense['title']?.toString() ?? '',
+    );
+
+    final amountController = TextEditingController(
+      text: ((expense['amount'] as num?)?.toDouble() ?? 0)
+          .toStringAsFixed(2),
+    );
+
+    final noteController = TextEditingController(
+      text: expense['note']?.toString() ?? '',
+    );
+
+    String selectedCategoryValue =
+        expense['category']?.toString() ?? 'Other';
+
+    String selectedPaymentMethodValue =
+        expense['payment_method']?.toString() ?? 'Cash';
+
+    DateTime selectedDate = DateTime.tryParse(
+          expense['expense_date']?.toString() ?? '',
+        ) ??
+        DateTime.now();
+
+    if (!categories.contains(selectedCategoryValue) ||
+        selectedCategoryValue == 'All') {
+      selectedCategoryValue = 'Other';
+    }
+
+    if (!paymentMethods.contains(
+          selectedPaymentMethodValue,
+        ) ||
+        selectedPaymentMethodValue == 'All') {
+      selectedPaymentMethodValue = 'Other';
+    }
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: const [
+                  Icon(Icons.edit_outlined),
+                  SizedBox(width: 10),
+                  Text('Edit Expense'),
+                ],
+              ),
+              content: SizedBox(
+                width: 550,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Expense Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      TextField(
+                        controller: titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Expense Title',
+                          prefixIcon:
+                              const Icon(Icons.title),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      DropdownButtonFormField<String>(
+                        value: selectedCategoryValue,
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          prefixIcon:
+                              const Icon(Icons.category_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                        items: categories
+                            .where((category) =>
+                                category != 'All')
+                            .map(
+                              (category) =>
+                                  DropdownMenuItem<String>(
+                                value: category,
+                                child: Text(category),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+
+                          setDialogState(() {
+                            selectedCategoryValue =
+                                value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      TextField(
+                        controller: amountController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Amount',
+                          prefixIcon:
+                              const Icon(Icons.payments_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      DropdownButtonFormField<String>(
+                        value:
+                            selectedPaymentMethodValue,
+                        decoration: InputDecoration(
+                          labelText: 'Payment Method',
+                          prefixIcon:
+                              const Icon(Icons.account_balance_wallet_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                        items: paymentMethods
+                            .where((method) =>
+                                method != 'All')
+                            .map(
+                              (method) =>
+                                  DropdownMenuItem<String>(
+                                value: method,
+                                child: Text(method),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+
+                          setDialogState(() {
+                            selectedPaymentMethodValue =
+                                value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      const Text(
+                        'Expense Date',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      InkWell(
+                        onTap: () async {
+                          final pickedDate =
+                              await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+
+                          if (pickedDate != null) {
+                            setDialogState(() {
+                              selectedDate =
+                                  pickedDate;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(
+                              Icons.calendar_today_outlined,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            _formatDate(
+                              selectedDate
+                                  .toIso8601String(),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      TextField(
+                        controller: noteController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Note',
+                          prefixIcon:
+                              const Icon(Icons.notes_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel'),
+                ),
+
+                FilledButton.icon(
+                  onPressed: () async {
+                    final title =
+                        titleController.text.trim();
+
+                    final amountText =
+                        amountController.text.trim();
+
+                    final note =
+                        noteController.text.trim();
+
+                    if (title.isEmpty) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enter an expense title',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final amount =
+                        double.tryParse(amountText);
+
+                    if (amount == null || amount <= 0) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enter a valid amount',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      await DatabaseHelper.updateExpense(
+                        expense['id'] as int,
+                        {
+                          'title': title,
+                          'category':
+                              selectedCategoryValue,
+                          'amount': amount,
+                          'expense_date':
+                              selectedDate
+                                  .toIso8601String(),
+                          'payment_method':
+                              selectedPaymentMethodValue,
+                          'note':
+                              note.isEmpty ? null : note,
+                        },
+                      );
+
+                      if (!mounted) return;
+
+                      Navigator.pop(dialogContext);
+
+                      await _loadExpenses();
+
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Expense updated successfully',
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Failed to update expense: $e',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text('Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    // IMPORTANT:
+    // Dispose only after the dialog is completely closed.
+    titleController.dispose();
+    amountController.dispose();
+    noteController.dispose();
+  }
+
+  // =========================
+  // DELETE EXPENSE
+  // =========================
+
+  Future<void> _deleteExpense(
+    Map<String, dynamic> expense,
+  ) async {
+    final title =
+        expense['title']?.toString() ?? 'this expense';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Delete Expense?'),
-          content: Text('Are you sure you want to delete "$expenseTitle"?'),
+          title: const Text('Delete Expense'),
+          content: Text(
+            'Are you sure you want to delete "$title"?',
+          ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context, false);
+                Navigator.pop(dialogContext, false);
               },
               child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(context, true);
+                Navigator.pop(dialogContext, true);
               },
               child: const Text('Delete'),
             ),
@@ -254,566 +948,598 @@ class _ExpensePageState extends State<ExpensePage> {
       },
     );
 
-    if (shouldDelete != true) {
-      return;
-    }
+    if (confirmed != true) return;
 
     try {
-      await DatabaseHelper.deleteExpense(expenseId);
-
-      if (!mounted) return;
+      await DatabaseHelper.deleteExpense(
+        expense['id'] as int,
+      );
 
       await _loadExpenses();
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Expense deleted successfully.')),
+        const SnackBar(
+          content: Text(
+            'Expense deleted successfully',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete expense: $e')));
-    }
-  }
-
-  // ------------------------------------------------------------
-  // Save Expense
-  // ------------------------------------------------------------
-
-  /// Validates the form and saves the expense to SQLite.
-  Future<void> _saveExpense() async {
-    // Stop if form validation fails.
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // Convert the entered amount to a number.
-    final amount = double.parse(_amountController.text.trim());
-
-    try {
-      // Save the expense to the database.
-      await DatabaseHelper.insertExpense({
-        'title': _titleController.text.trim(),
-        'category': _selectedCategory,
-        'amount': amount,
-        'expense_date': _selectedDate.toIso8601String(),
-        'payment_method': _selectedPaymentMethod,
-        'note': _noteController.text.trim().isEmpty
-            ? null
-            : _noteController.text.trim(),
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      // Make sure the page still exists before using context.
-      if (!mounted) return;
-
-      // Show successful save message.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Expense saved successfully.')),
+        SnackBar(
+          content: Text(
+            'Failed to delete expense: $e',
+          ),
+        ),
       );
-
-      // Clear the form after successful save.
-      _titleController.clear();
-      _amountController.clear();
-      _noteController.clear();
-
-      setState(() {
-        _selectedCategory = 'Other';
-        _selectedPaymentMethod = 'Cash';
-        _selectedDate = DateTime.now();
-      });
-      await _loadExpenses();
-    } catch (e) {
-      // Make sure the page still exists before using context.
-      if (!mounted) return;
-
-      // Show database error.
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to save expense: $e')));
     }
   }
 
-  // ------------------------------------------------------------
-  // Build UI
-  // ------------------------------------------------------------
+  // =========================
+  // EXPENSE DETAILS
+  // =========================
+
+  Future<void> _showExpenseDetails(
+    Map<String, dynamic> expense,
+  ) async {
+    final amount =
+        ((expense['amount'] as num?)?.toDouble() ?? 0);
+
+    final title =
+        expense['title']?.toString() ?? '-';
+
+    final category =
+        expense['category']?.toString() ?? '-';
+
+    final paymentMethod =
+        expense['payment_method']?.toString() ?? '-';
+
+    final expenseDate =
+        expense['expense_date']?.toString();
+
+    final note =
+        expense['note']?.toString() ?? '';
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                _getExpenseIcon(category),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                _expenseDetailRow(
+                  'Category',
+                  category,
+                  Icons.category_outlined,
+                ),
+
+                const Divider(),
+
+                _expenseDetailRow(
+                  'Amount',
+                  'Rs. ${amount.toStringAsFixed(2)}',
+                  Icons.payments_outlined,
+                ),
+
+                const Divider(),
+
+                _expenseDetailRow(
+                  'Payment Method',
+                  paymentMethod,
+                  Icons.account_balance_wallet_outlined,
+                ),
+
+                const Divider(),
+
+                _expenseDetailRow(
+                  'Date',
+                  _formatDate(expenseDate),
+                  Icons.calendar_today_outlined,
+                ),
+
+                if (note.isNotEmpty) ...[
+                  const Divider(),
+                  _expenseDetailRow(
+                    'Note',
+                    note,
+                    Icons.notes_outlined,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Close'),
+            ),
+
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _showEditExpenseDialog(expense);
+              },
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit'),
+            ),
+
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _deleteExpense(expense);
+              },
+              icon: const Icon(Icons.delete),
+              label: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // =========================
+  // DETAIL ROW
+  // =========================
+
+  Widget _expenseDetailRow(
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 8,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 22,
+          ),
+
+          const SizedBox(width: 12),
+
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================
+  // SUMMARY CARD
+  // =========================
+
+  Widget _summaryCard(
+    String title,
+    double amount,
+    IconData icon,
+  ) {
+    return Expanded(
+      child: Card(
+        elevation: 1,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 25,
+                child: Icon(icon),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      'Rs. ${amount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =========================
+  // BUILD
+  // =========================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ----------------------------------------------------------
-      // App Bar
-      // ----------------------------------------------------------
+      appBar: AppBar(
+        title: const Text('Expenses'),
+      ),
 
-      appBar: AppBar(title: const Text('Expenses')),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Expense Management',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
 
-      // ----------------------------------------------------------
-      // Main Content
-      // ----------------------------------------------------------
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+            const SizedBox(height: 8),
 
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 700),
+            const Text(
+              'Create and manage your business expenses',
+              style: TextStyle(
+                fontSize: 16,
+              ),
+            ),
 
-            // Expense form.
-            child: Form(
-              key: _formKey,
+            const SizedBox(height: 25),
 
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ------------------------------------------------
-                  // Page Heading
-                  // ------------------------------------------------
+            // =========================
+            // SUMMARY CARDS
+            // =========================
 
-                  const Text(
-                    'Add Expense',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
+            Row(
+              children: [
+                _summaryCard(
+                  'Total Expenses',
+                  _totalExpenses,
+                  Icons.account_balance_wallet_outlined,
+                ),
 
-                  const SizedBox(height: 8),
+                const SizedBox(width: 15),
 
-                  const Text(
-                    'Record a business expense.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                _summaryCard(
+                  'This Month',
+                  _thisMonthExpenses,
+                  Icons.calendar_month_outlined,
+                ),
 
-                  const SizedBox(height: 30),
+                const SizedBox(width: 15),
 
-                  // ------------------------------------------------
-                  // Expense Title
-                  // ------------------------------------------------
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Expense Title',
-                      hintText: 'e.g. Electricity Bill',
-                      prefixIcon: Icon(Icons.receipt_long),
-                      border: OutlineInputBorder(),
-                    ),
+                _summaryCard(
+                  'Today',
+                  _todayExpenses,
+                  Icons.today_outlined,
+                ),
+              ],
+            ),
 
-                    // Title is required.
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Expense title is required.';
-                      }
+            const SizedBox(height: 25),
 
-                      return null;
-                    },
-                  ),
+            // =========================
+            // SEARCH + FILTERS
+            // =========================
 
-                  const SizedBox(height: 18),
-
-                  // ------------------------------------------------
-                  // Expense Category
-                  // ------------------------------------------------
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedCategory,
-
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      prefixIcon: Icon(Icons.category),
-                      border: OutlineInputBorder(),
-                    ),
-
-                    // Create dropdown items from the category list.
-                    items: _categories.map((category) {
-                      return DropdownMenuItem(
-                        value: category,
-                        child: Text(category),
-                      );
-                    }).toList(),
-
-                    // Update selected category.
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedCategory = value;
-                        });
-                      }
-                    },
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // ------------------------------------------------
-                  // Expense Amount
-                  // ------------------------------------------------
-                  TextFormField(
-                    controller: _amountController,
-
-                    // Show numeric keyboard.
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-
-                    decoration: const InputDecoration(
-                      labelText: 'Amount',
-                      hintText: '0.00',
-                      prefixText: 'Rs. ',
-                      prefixIcon: Icon(Icons.payments),
-                      border: OutlineInputBorder(),
-                    ),
-
-                    // Validate expense amount.
-                    validator: (value) {
-                      final amount = double.tryParse(value?.trim() ?? '');
-
-                      if (amount == null || amount <= 0) {
-                        return 'Enter a valid amount.';
-                      }
-
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // ------------------------------------------------
-                  // Expense Date
-                  // ------------------------------------------------
-                  InkWell(
-                    onTap: _selectDate,
-
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Expense Date',
-                        prefixIcon: Icon(Icons.calendar_today),
-                        border: OutlineInputBorder(),
-                      ),
-
-                      // Display selected date.
-                      child: Text(
-                        '${_selectedDate.day.toString().padLeft(2, '0')}/'
-                        '${_selectedDate.month.toString().padLeft(2, '0')}/'
-                        '${_selectedDate.year}',
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // ------------------------------------------------
-                  // Payment Method
-                  // ------------------------------------------------
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedPaymentMethod,
-
-                    decoration: const InputDecoration(
-                      labelText: 'Payment Method',
-                      prefixIcon: Icon(Icons.account_balance_wallet),
-                      border: OutlineInputBorder(),
-                    ),
-
-                    // Create dropdown items from payment methods.
-                    items: _paymentMethods.map((method) {
-                      return DropdownMenuItem(
-                        value: method,
-                        child: Text(method),
-                      );
-                    }).toList(),
-
-                    // Update selected payment method.
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedPaymentMethod = value;
-                        });
-                      }
-                    },
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // ------------------------------------------------
-                  // Optional Note
-                  // ------------------------------------------------
-                  TextFormField(
-                    controller: _noteController,
-                    maxLines: 3,
-
-                    decoration: const InputDecoration(
-                      labelText: 'Note',
-                      hintText: 'Optional note',
-                      prefixIcon: Icon(Icons.notes),
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // ------------------------------------------------
-                  // Save Button
-                  // ------------------------------------------------
-                  SizedBox(
-                    width: double.infinity,
-
-                    child: FilledButton.icon(
-                      onPressed: _saveExpense,
-
-                      icon: const Icon(Icons.save),
-
-                      label: const Text('Save Expense'),
-                    ),
-                  ),
-
-                  const SizedBox(height: 50),
-
-                  // ------------------------------------------------
-                  // Expense List
-                  // ------------------------------------------------
-                  const Text(
-                    'Expense History',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  const Text(
-                    'View your recorded business expenses.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-
-                  // ------------------------------------------------
-                  // Search Expenses
-                  // ------------------------------------------------
-                  TextField(
-                    controller: _searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    onChanged: _searchExpenses,
                     decoration: InputDecoration(
-                      labelText: 'Search Expenses',
-                      hintText: 'Search by title, category or payment method',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-
-                                setState(() {
-                                  _searchQuery = '';
-                                });
-                              },
-                            )
-                          : null,
-                      border: const OutlineInputBorder(),
+                      hintText: 'Search Expenses...',
+                      prefixIcon:
+                          const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(10),
+                      ),
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 20),
+                const SizedBox(width: 12),
 
-                  // ------------------------------------------------
-                  // Expense Filters
-                  // ------------------------------------------------
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedFilterCategory,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                            prefixIcon: Icon(Icons.category_outlined),
-                            border: OutlineInputBorder(),
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'All',
-                              child: Text('All Categories'),
-                            ),
-                            ..._categories.map(
-                              (category) => DropdownMenuItem(
-                                value: category,
-                                child: Text(category),
-                              ),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) return;
-
-                            setState(() {
-                              _selectedFilterCategory = value;
-                            });
-                          },
+                DropdownButton<String>(
+                  value: selectedCategory,
+                  items: categories
+                      .map(
+                        (category) =>
+                            DropdownMenuItem<String>(
+                          value: category,
+                          child: Text(category),
                         ),
-                      ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
 
-                      const SizedBox(width: 12),
+                    setState(() {
+                      selectedCategory = value;
+                    });
 
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedFilterPaymentMethod,
-                          decoration: const InputDecoration(
-                            labelText: 'Payment',
-                            prefixIcon: Icon(
-                              Icons.account_balance_wallet_outlined,
-                            ),
-                            border: OutlineInputBorder(),
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'All',
-                              child: Text('All Methods'),
-                            ),
-                            ..._paymentMethods.map(
-                              (method) => DropdownMenuItem(
-                                value: method,
-                                child: Text(method),
-                              ),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) return;
+                    _applyFilters();
+                  },
+                ),
 
-                            setState(() {
-                              _selectedFilterPaymentMethod = value;
-                            });
-                          },
+                const SizedBox(width: 15),
+
+                DropdownButton<String>(
+                  value: selectedPaymentMethod,
+                  items: paymentMethods
+                      .map(
+                        (method) =>
+                            DropdownMenuItem<String>(
+                          value: method,
+                          child: Text(method),
                         ),
-                      ),
-                    ],
-                  ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
 
-                  const SizedBox(height: 20),
+                    setState(() {
+                      selectedPaymentMethod = value;
+                    });
 
-                  const SizedBox(height: 20),
+                    _applyFilters();
+                  },
+                ),
 
-                  // Loading state
-                  if (_isLoadingExpenses)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(30),
-                        child: CircularProgressIndicator(),
-                      ),
+                const SizedBox(width: 15),
+
+                FilledButton.icon(
+                  onPressed:
+                      _showCreateExpenseDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create Expense'),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 25),
+
+            // =========================
+            // EXPENSE LIST
+            // =========================
+
+            Expanded(
+              child: isLoadingExpenses
+                  ? const Center(
+                      child:
+                          CircularProgressIndicator(),
                     )
-                  // Empty state
-                  else if (_expenses.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(30),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Column(
-                        children: [
-                          Icon(
-                            Icons.receipt_long_outlined,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            'No expenses yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Saved expenses will appear here.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    )
-                  // Expense list
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _filteredExpenses.length,
-                      separatorBuilder: (context, index) {
-                        return const SizedBox(height: 12);
-                      },
-                      itemBuilder: (context, index) {
-                        final expense = _filteredExpenses[index];
-
-                        final title = expense['title']?.toString() ?? '-';
-
-                        final category = expense['category']?.toString() ?? '-';
-
-                        final paymentMethod =
-                            expense['payment_method']?.toString() ?? '-';
-
-                        final amount =
-                            (expense['amount'] as num?)?.toDouble() ?? 0;
-
-                        final expenseDate = expense['expense_date']?.toString();
-
-                        String formattedDate = '-';
-
-                        if (expenseDate != null) {
-                          final parsedDate = DateTime.tryParse(expenseDate);
-
-                          if (parsedDate != null) {
-                            formattedDate =
-                                '${parsedDate.day.toString().padLeft(2, '0')}/'
-                                '${parsedDate.month.toString().padLeft(2, '0')}/'
-                                '${parsedDate.year}';
-                          }
-                        }
-
-                        return Card(
-                          elevation: 1,
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 10,
-                            ),
-                            leading: CircleAvatar(
-                              child: Icon(_getExpenseIcon(category)),
-                            ),
-                            title: Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                '$category • $paymentMethod\n'
-                                '$formattedDate',
-                              ),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
+                  : filteredExpenses.isEmpty
+                      ? Card(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
                               children: [
+                                const Icon(
+                                  Icons.receipt_long,
+                                  size: 70,
+                                ),
+
+                                const SizedBox(height: 15),
+
                                 Text(
-                                  'Rs. ${amount.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
+                                  expenseSearchQuery
+                                              .isNotEmpty ||
+                                          selectedCategory !=
+                                              'All' ||
+                                          selectedPaymentMethod !=
+                                              'All'
+                                      ? 'No matching expenses found'
+                                      : 'No expenses yet',
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight:
+                                        FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  tooltip: 'Delete Expense',
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () {
-                                    _deleteExpense(expense);
-                                  },
-                                ),
+
+                                const SizedBox(height: 10),
+
+                                if (expenseSearchQuery
+                                        .isEmpty &&
+                                    selectedCategory ==
+                                        'All' &&
+                                    selectedPaymentMethod ==
+                                        'All')
+                                  FilledButton.icon(
+                                    onPressed:
+                                        _showCreateExpenseDialog,
+                                    icon: const Icon(
+                                      Icons.add,
+                                    ),
+                                    label: const Text(
+                                      'Create Expense',
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
-                        );
-                      },
-                    ),
-                ],
-              ),
+                        )
+                      : Card(
+                          child: ListView.separated(
+                            padding:
+                                const EdgeInsets.all(12),
+                            itemCount:
+                                filteredExpenses.length,
+                            separatorBuilder:
+                                (context, index) =>
+                                    const Divider(),
+                            itemBuilder:
+                                (context, index) {
+                              final expense =
+                                  filteredExpenses[
+                                      index];
+
+                              final amount =
+                                  ((expense['amount']
+                                              as num?)
+                                          ?.toDouble() ??
+                                      0);
+
+                              final title =
+                                  expense['title']
+                                          ?.toString() ??
+                                      '-';
+
+                              final category =
+                                  expense['category']
+                                          ?.toString() ??
+                                      '-';
+
+                              final paymentMethod =
+                                  expense[
+                                              'payment_method']
+                                          ?.toString() ??
+                                      '-';
+
+                              final date =
+                                  expense['expense_date']
+                                          ?.toString();
+
+                              return ListTile(
+                                contentPadding:
+                                    const EdgeInsets
+                                        .symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+
+                                leading: CircleAvatar(
+                                  child: Icon(
+                                    _getExpenseIcon(
+                                      category,
+                                    ),
+                                  ),
+                                ),
+
+                                title: Text(
+                                  title,
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+
+                                subtitle: Text(
+                                  '$category • '
+                                  '$paymentMethod • '
+                                  '${_formatDate(date)}',
+                                ),
+
+                                trailing: Row(
+                                  mainAxisSize:
+                                      MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Rs. ${amount.toStringAsFixed(2)}',
+                                      style:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+
+                                    const SizedBox(
+                                      width: 15,
+                                    ),
+
+                                    IconButton(
+                                      tooltip:
+                                          'Edit Expense',
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                      ),
+                                      onPressed: () {
+                                        _showEditExpenseDialog(
+                                          expense,
+                                        );
+                                      },
+                                    ),
+
+                                    IconButton(
+                                      tooltip:
+                                          'Delete Expense',
+                                      icon: const Icon(
+                                        Icons
+                                            .delete_outline,
+                                      ),
+                                      onPressed: () {
+                                        _deleteExpense(
+                                          expense,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+
+                                onTap: () {
+                                  _showExpenseDetails(
+                                    expense,
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
             ),
-          ),
+          ],
         ),
       ),
     );
