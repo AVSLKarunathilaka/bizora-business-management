@@ -25,7 +25,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 7,
+        version: 9,
 
         // ============================================================
         // CREATE DATABASE
@@ -114,15 +114,35 @@ class DatabaseHelper {
           // Expenses
           // ----------------------------------------------------------
           await db.execute('''
-            CREATE TABLE expenses (
+  CREATE TABLE expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    expense_id TEXT UNIQUE,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    amount REAL NOT NULL,
+    expense_date TEXT NOT NULL,
+    payment_method TEXT NOT NULL,
+    note TEXT,
+    created_at TEXT NOT NULL
+  )
+''');
+
+          // ----------------------------------------------------------
+          // Products
+          // ----------------------------------------------------------
+          await db.execute('''
+            CREATE TABLE products (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
-              title TEXT NOT NULL,
+              name TEXT NOT NULL,
+              sku TEXT NOT NULL UNIQUE,
               category TEXT NOT NULL,
-              amount REAL NOT NULL,
-              expense_date TEXT NOT NULL,
-              payment_method TEXT NOT NULL,
-              note TEXT,
-              created_at TEXT NOT NULL
+              buying_price REAL NOT NULL DEFAULT 0,
+              selling_price REAL NOT NULL DEFAULT 0,
+              stock_quantity REAL NOT NULL DEFAULT 0,
+              minimum_stock_level REAL NOT NULL DEFAULT 0,
+              description TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
             )
           ''');
         },
@@ -247,6 +267,58 @@ class DatabaseHelper {
                 created_at TEXT NOT NULL
               )
             ''');
+          }
+
+          // ----------------------------------------------------------
+          // Version 7 -> 8
+          // Add products
+          // ----------------------------------------------------------
+          if (oldVersion < 8) {
+            await db.execute('''
+              CREATE TABLE products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                sku TEXT NOT NULL UNIQUE,
+                category TEXT NOT NULL,
+                buying_price REAL NOT NULL DEFAULT 0,
+                selling_price REAL NOT NULL DEFAULT 0,
+                stock_quantity REAL NOT NULL DEFAULT 0,
+                minimum_stock_level REAL NOT NULL DEFAULT 0,
+                description TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+              )
+            ''');
+          }
+
+          // ----------------------------------------------------------
+          // Version 8 -> 9
+          // Add expense_id to expenses
+          // ----------------------------------------------------------
+          if (oldVersion < 9) {
+            await db.execute('''
+    ALTER TABLE expenses
+    ADD COLUMN expense_id TEXT
+  ''');
+
+            final existingExpenses = await db.query(
+              'expenses',
+              columns: ['id'],
+              orderBy: 'id ASC',
+            );
+
+            for (final expense in existingExpenses) {
+              final id = expense['id'] as int;
+
+              final expenseId = 'EXP-${id.toString().padLeft(4, '0')}';
+
+              await db.update(
+                'expenses',
+                {'expense_id': expenseId},
+                where: 'id = ?',
+                whereArgs: [id],
+              );
+            }
           }
         },
       ),
@@ -614,13 +686,6 @@ class DatabaseHelper {
     );
   }
 
-  // Add expense
-  static Future<int> insertExpense(Map<String, dynamic> expense) async {
-    final db = await database;
-
-    return await db.insert('expenses', expense);
-  }
-
   // ------------------------------------------------------------
   // Get Expenses
   // ------------------------------------------------------------
@@ -645,5 +710,99 @@ class DatabaseHelper {
     final db = await database;
 
     return await db.update('expenses', data, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ================================================================
+  // PRODUCT MANAGEMENT
+  // ================================================================
+
+  // Add product
+  static Future<int> insertProduct(Map<String, dynamic> product) async {
+    final db = await database;
+
+    return await db.insert('products', product);
+  }
+
+  //-------------------------------------------------------
+  //insert expences
+  //---------------------------------------------------------
+
+  static Future<int> insertExpense(Map<String, dynamic> expense) async {
+    final db = await database;
+
+    return await db.transaction((txn) async {
+      final id = await txn.insert('expenses', expense);
+
+      final expenseId = 'EXP-${id.toString().padLeft(4, '0')}';
+
+      await txn.update(
+        'expenses',
+        {'expense_id': expenseId},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+      return id;
+    });
+  }
+
+  // Get all products
+  static Future<List<Map<String, dynamic>>> getProducts() async {
+    final db = await database;
+
+    return await db.query('products', orderBy: 'id DESC');
+  }
+
+  // Get product by ID
+  static Future<Map<String, dynamic>?> getProductById(int id) async {
+    final db = await database;
+
+    final result = await db.query(
+      'products',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+
+    if (result.isEmpty) {
+      return null;
+    }
+
+    return result.first;
+  }
+
+  // Update product
+  static Future<int> updateProduct(int id, Map<String, dynamic> product) async {
+    final db = await database;
+
+    return await db.update(
+      'products',
+      product,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Delete product
+  static Future<int> deleteProduct(int id) async {
+    final db = await database;
+
+    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Search products
+  static Future<List<Map<String, dynamic>>> searchProducts(String query) async {
+    final db = await database;
+
+    return await db.query(
+      'products',
+      where: '''
+        name LIKE ?
+        OR sku LIKE ?
+        OR category LIKE ?
+      ''',
+      whereArgs: ['%$query%', '%$query%', '%$query%'],
+      orderBy: 'id DESC',
+    );
   }
 }

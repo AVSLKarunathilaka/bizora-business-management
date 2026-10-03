@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:small_business_invoice/screens/customer/customer_page.dart';
 import 'package:small_business_invoice/screens/expense/expense_page.dart';
 import 'package:small_business_invoice/screens/settings/business_settings_page.dart';
+import 'package:small_business_invoice/screens/product/product_page.dart';
 
 import '../db/database_helper.dart';
 import '../screens/invoice/invoice_page.dart';
@@ -146,6 +147,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 // Refresh recent invoices when returning
                 _loadRecentData();
+              },
+            ),
+
+            // ----------------------------------------------------
+            // Products
+            // ----------------------------------------------------
+            ListTile(
+              leading: const Icon(Icons.inventory_2),
+              title: const Text('Products'),
+              onTap: () {
+                Navigator.pop(context);
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProductPage()),
+                );
               },
             ),
 

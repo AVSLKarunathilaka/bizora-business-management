@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../../db/database_helper.dart';
 
 class ExpensePage extends StatefulWidget {
@@ -67,11 +69,8 @@ class _ExpensePageState extends State<ExpensePage> {
         isLoadingExpenses = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load expenses: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to load expenses: $e')));
     }
   }
 
@@ -84,36 +83,32 @@ class _ExpensePageState extends State<ExpensePage> {
 
     setState(() {
       filteredExpenses = expenses.where((expense) {
-        final title =
-            expense['title']?.toString().toLowerCase() ?? '';
+        final expenseId = expense['expense_id']?.toString().toLowerCase() ?? '';
 
-        final category =
-            expense['category']?.toString() ?? '';
+        final title = expense['title']?.toString().toLowerCase() ?? '';
 
-        final paymentMethod =
-            expense['payment_method']?.toString() ?? '';
+        final category = expense['category']?.toString() ?? '';
 
-        final note =
-            expense['note']?.toString().toLowerCase() ?? '';
+        final paymentMethod = expense['payment_method']?.toString() ?? '';
+
+        final note = expense['note']?.toString().toLowerCase() ?? '';
 
         final matchesSearch =
             query.isEmpty ||
+            expenseId.contains(query) ||
             title.contains(query) ||
             category.toLowerCase().contains(query) ||
             paymentMethod.toLowerCase().contains(query) ||
             note.contains(query);
 
         final matchesCategory =
-            selectedCategory == 'All' ||
-            category == selectedCategory;
+            selectedCategory == 'All' || category == selectedCategory;
 
         final matchesPaymentMethod =
             selectedPaymentMethod == 'All' ||
             paymentMethod == selectedPaymentMethod;
 
-        return matchesSearch &&
-            matchesCategory &&
-            matchesPaymentMethod;
+        return matchesSearch && matchesCategory && matchesPaymentMethod;
       }).toList();
     });
   }
@@ -182,64 +177,54 @@ class _ExpensePageState extends State<ExpensePage> {
   double get _totalExpenses {
     return expenses.fold<double>(
       0,
-      (sum, expense) =>
-          sum + ((expense['amount'] as num?)?.toDouble() ?? 0),
+      (sum, expense) => sum + ((expense['amount'] as num?)?.toDouble() ?? 0),
     );
   }
 
   double get _todayExpenses {
     final now = DateTime.now();
 
-    return expenses.fold<double>(
-      0,
-      (sum, expense) {
-        final dateString = expense['expense_date']?.toString();
+    return expenses.fold<double>(0, (sum, expense) {
+      final dateString = expense['expense_date']?.toString();
 
-        if (dateString == null) {
-          return sum;
-        }
-
-        try {
-          final date = DateTime.parse(dateString);
-
-          if (date.year == now.year &&
-              date.month == now.month &&
-              date.day == now.day) {
-            return sum +
-                ((expense['amount'] as num?)?.toDouble() ?? 0);
-          }
-        } catch (_) {}
-
+      if (dateString == null) {
         return sum;
-      },
-    );
+      }
+
+      try {
+        final date = DateTime.parse(dateString);
+
+        if (date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day) {
+          return sum + ((expense['amount'] as num?)?.toDouble() ?? 0);
+        }
+      } catch (_) {}
+
+      return sum;
+    });
   }
 
   double get _thisMonthExpenses {
     final now = DateTime.now();
 
-    return expenses.fold<double>(
-      0,
-      (sum, expense) {
-        final dateString = expense['expense_date']?.toString();
+    return expenses.fold<double>(0, (sum, expense) {
+      final dateString = expense['expense_date']?.toString();
 
-        if (dateString == null) {
-          return sum;
-        }
-
-        try {
-          final date = DateTime.parse(dateString);
-
-          if (date.year == now.year &&
-              date.month == now.month) {
-            return sum +
-                ((expense['amount'] as num?)?.toDouble() ?? 0);
-          }
-        } catch (_) {}
-
+      if (dateString == null) {
         return sum;
-      },
-    );
+      }
+
+      try {
+        final date = DateTime.parse(dateString);
+
+        if (date.year == now.year && date.month == now.month) {
+          return sum + ((expense['amount'] as num?)?.toDouble() ?? 0);
+        }
+      } catch (_) {}
+
+      return sum;
+    });
   }
 
   // =========================
@@ -289,11 +274,9 @@ class _ExpensePageState extends State<ExpensePage> {
                         decoration: InputDecoration(
                           labelText: 'Expense Title',
                           hintText: 'Enter expense title',
-                          prefixIcon:
-                              const Icon(Icons.title),
+                          prefixIcon: const Icon(Icons.title),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
@@ -304,19 +287,15 @@ class _ExpensePageState extends State<ExpensePage> {
                         value: selectedCategoryValue,
                         decoration: InputDecoration(
                           labelText: 'Category',
-                          prefixIcon:
-                              const Icon(Icons.category_outlined),
+                          prefixIcon: const Icon(Icons.category_outlined),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         items: categories
-                            .where((category) =>
-                                category != 'All')
+                            .where((category) => category != 'All')
                             .map(
-                              (category) =>
-                                  DropdownMenuItem<String>(
+                              (category) => DropdownMenuItem<String>(
                                 value: category,
                                 child: Text(category),
                               ),
@@ -335,18 +314,15 @@ class _ExpensePageState extends State<ExpensePage> {
 
                       TextField(
                         controller: amountController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
+                        keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                         decoration: InputDecoration(
                           labelText: 'Amount',
                           hintText: '0.00',
-                          prefixIcon:
-                              const Icon(Icons.payments_outlined),
+                          prefixIcon: const Icon(Icons.payments_outlined),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
@@ -357,19 +333,17 @@ class _ExpensePageState extends State<ExpensePage> {
                         value: selectedPaymentMethodValue,
                         decoration: InputDecoration(
                           labelText: 'Payment Method',
-                          prefixIcon:
-                              const Icon(Icons.account_balance_wallet_outlined),
+                          prefixIcon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         items: paymentMethods
-                            .where((method) =>
-                                method != 'All')
+                            .where((method) => method != 'All')
                             .map(
-                              (method) =>
-                                  DropdownMenuItem<String>(
+                              (method) => DropdownMenuItem<String>(
                                 value: method,
                                 child: Text(method),
                               ),
@@ -379,8 +353,7 @@ class _ExpensePageState extends State<ExpensePage> {
                           if (value == null) return;
 
                           setDialogState(() {
-                            selectedPaymentMethodValue =
-                                value;
+                            selectedPaymentMethodValue = value;
                           });
                         },
                       ),
@@ -389,17 +362,14 @@ class _ExpensePageState extends State<ExpensePage> {
 
                       const Text(
                         'Expense Date',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
 
                       const SizedBox(height: 8),
 
                       InkWell(
                         onTap: () async {
-                          final pickedDate =
-                              await showDatePicker(
+                          final pickedDate = await showDatePicker(
                             context: context,
                             initialDate: selectedDate,
                             firstDate: DateTime(2000),
@@ -418,15 +388,11 @@ class _ExpensePageState extends State<ExpensePage> {
                               Icons.calendar_today_outlined,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           child: Text(
-                            _formatDate(
-                              selectedDate
-                                  .toIso8601String(),
-                            ),
+                            _formatDate(selectedDate.toIso8601String()),
                           ),
                         ),
                       ),
@@ -438,13 +404,10 @@ class _ExpensePageState extends State<ExpensePage> {
                         maxLines: 3,
                         decoration: InputDecoration(
                           labelText: 'Note',
-                          hintText:
-                              'Optional additional information',
-                          prefixIcon:
-                              const Icon(Icons.notes_outlined),
+                          hintText: 'Optional additional information',
+                          prefixIcon: const Icon(Icons.notes_outlined),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
@@ -462,37 +425,27 @@ class _ExpensePageState extends State<ExpensePage> {
 
                 FilledButton.icon(
                   onPressed: () async {
-                    final title =
-                        titleController.text.trim();
+                    final title = titleController.text.trim();
 
-                    final amountText =
-                        amountController.text.trim();
+                    final amountText = amountController.text.trim();
 
-                    final note =
-                        noteController.text.trim();
+                    final note = noteController.text.trim();
 
                     if (title.isEmpty) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Please enter an expense title',
-                          ),
+                          content: Text('Please enter an expense title'),
                         ),
                       );
                       return;
                     }
 
-                    final amount =
-                        double.tryParse(amountText);
+                    final amount = double.tryParse(amountText);
 
                     if (amount == null || amount <= 0) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Please enter a valid amount',
-                          ),
+                          content: Text('Please enter a valid amount'),
                         ),
                       );
                       return;
@@ -501,19 +454,12 @@ class _ExpensePageState extends State<ExpensePage> {
                     try {
                       await DatabaseHelper.insertExpense({
                         'title': title,
-                        'category':
-                            selectedCategoryValue,
+                        'category': selectedCategoryValue,
                         'amount': amount,
-                        'expense_date':
-                            selectedDate
-                                .toIso8601String(),
-                        'payment_method':
-                            selectedPaymentMethodValue,
-                        'note':
-                            note.isEmpty ? null : note,
-                        'created_at':
-                            DateTime.now()
-                                .toIso8601String(),
+                        'expense_date': selectedDate.toIso8601String(),
+                        'payment_method': selectedPaymentMethodValue,
+                        'note': note.isEmpty ? null : note,
+                        'created_at': DateTime.now().toIso8601String(),
                       });
 
                       if (!mounted) return;
@@ -524,24 +470,16 @@ class _ExpensePageState extends State<ExpensePage> {
 
                       if (!mounted) return;
 
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Expense created successfully',
-                          ),
+                          content: Text('Expense created successfully'),
                         ),
                       );
                     } catch (e) {
                       if (!mounted) return;
 
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Failed to create expense: $e',
-                          ),
-                        ),
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to create expense: $e')),
                       );
                     }
                   },
@@ -566,31 +504,26 @@ class _ExpensePageState extends State<ExpensePage> {
   // EDIT EXPENSE
   // =========================
 
-  Future<void> _showEditExpenseDialog(
-    Map<String, dynamic> expense,
-  ) async {
+  Future<void> _showEditExpenseDialog(Map<String, dynamic> expense) async {
     final titleController = TextEditingController(
       text: expense['title']?.toString() ?? '',
     );
 
     final amountController = TextEditingController(
-      text: ((expense['amount'] as num?)?.toDouble() ?? 0)
-          .toStringAsFixed(2),
+      text: ((expense['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
     );
 
     final noteController = TextEditingController(
       text: expense['note']?.toString() ?? '',
     );
 
-    String selectedCategoryValue =
-        expense['category']?.toString() ?? 'Other';
+    String selectedCategoryValue = expense['category']?.toString() ?? 'Other';
 
     String selectedPaymentMethodValue =
         expense['payment_method']?.toString() ?? 'Cash';
 
-    DateTime selectedDate = DateTime.tryParse(
-          expense['expense_date']?.toString() ?? '',
-        ) ??
+    DateTime selectedDate =
+        DateTime.tryParse(expense['expense_date']?.toString() ?? '') ??
         DateTime.now();
 
     if (!categories.contains(selectedCategoryValue) ||
@@ -598,9 +531,7 @@ class _ExpensePageState extends State<ExpensePage> {
       selectedCategoryValue = 'Other';
     }
 
-    if (!paymentMethods.contains(
-          selectedPaymentMethodValue,
-        ) ||
+    if (!paymentMethods.contains(selectedPaymentMethodValue) ||
         selectedPaymentMethodValue == 'All') {
       selectedPaymentMethodValue = 'Other';
     }
@@ -622,8 +553,7 @@ class _ExpensePageState extends State<ExpensePage> {
                 width: 550,
                 child: SingleChildScrollView(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Expense Details',
@@ -639,11 +569,9 @@ class _ExpensePageState extends State<ExpensePage> {
                         controller: titleController,
                         decoration: InputDecoration(
                           labelText: 'Expense Title',
-                          prefixIcon:
-                              const Icon(Icons.title),
+                          prefixIcon: const Icon(Icons.title),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
@@ -654,19 +582,15 @@ class _ExpensePageState extends State<ExpensePage> {
                         value: selectedCategoryValue,
                         decoration: InputDecoration(
                           labelText: 'Category',
-                          prefixIcon:
-                              const Icon(Icons.category_outlined),
+                          prefixIcon: const Icon(Icons.category_outlined),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         items: categories
-                            .where((category) =>
-                                category != 'All')
+                            .where((category) => category != 'All')
                             .map(
-                              (category) =>
-                                  DropdownMenuItem<String>(
+                              (category) => DropdownMenuItem<String>(
                                 value: category,
                                 child: Text(category),
                               ),
@@ -676,8 +600,7 @@ class _ExpensePageState extends State<ExpensePage> {
                           if (value == null) return;
 
                           setDialogState(() {
-                            selectedCategoryValue =
-                                value;
+                            selectedCategoryValue = value;
                           });
                         },
                       ),
@@ -686,17 +609,14 @@ class _ExpensePageState extends State<ExpensePage> {
 
                       TextField(
                         controller: amountController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
+                        keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                         decoration: InputDecoration(
                           labelText: 'Amount',
-                          prefixIcon:
-                              const Icon(Icons.payments_outlined),
+                          prefixIcon: const Icon(Icons.payments_outlined),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
@@ -704,23 +624,20 @@ class _ExpensePageState extends State<ExpensePage> {
                       const SizedBox(height: 15),
 
                       DropdownButtonFormField<String>(
-                        value:
-                            selectedPaymentMethodValue,
+                        value: selectedPaymentMethodValue,
                         decoration: InputDecoration(
                           labelText: 'Payment Method',
-                          prefixIcon:
-                              const Icon(Icons.account_balance_wallet_outlined),
+                          prefixIcon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         items: paymentMethods
-                            .where((method) =>
-                                method != 'All')
+                            .where((method) => method != 'All')
                             .map(
-                              (method) =>
-                                  DropdownMenuItem<String>(
+                              (method) => DropdownMenuItem<String>(
                                 value: method,
                                 child: Text(method),
                               ),
@@ -730,8 +647,7 @@ class _ExpensePageState extends State<ExpensePage> {
                           if (value == null) return;
 
                           setDialogState(() {
-                            selectedPaymentMethodValue =
-                                value;
+                            selectedPaymentMethodValue = value;
                           });
                         },
                       ),
@@ -740,17 +656,14 @@ class _ExpensePageState extends State<ExpensePage> {
 
                       const Text(
                         'Expense Date',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
 
                       const SizedBox(height: 8),
 
                       InkWell(
                         onTap: () async {
-                          final pickedDate =
-                              await showDatePicker(
+                          final pickedDate = await showDatePicker(
                             context: context,
                             initialDate: selectedDate,
                             firstDate: DateTime(2000),
@@ -759,8 +672,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
                           if (pickedDate != null) {
                             setDialogState(() {
-                              selectedDate =
-                                  pickedDate;
+                              selectedDate = pickedDate;
                             });
                           }
                         },
@@ -770,15 +682,11 @@ class _ExpensePageState extends State<ExpensePage> {
                               Icons.calendar_today_outlined,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           child: Text(
-                            _formatDate(
-                              selectedDate
-                                  .toIso8601String(),
-                            ),
+                            _formatDate(selectedDate.toIso8601String()),
                           ),
                         ),
                       ),
@@ -790,11 +698,9 @@ class _ExpensePageState extends State<ExpensePage> {
                         maxLines: 3,
                         decoration: InputDecoration(
                           labelText: 'Note',
-                          prefixIcon:
-                              const Icon(Icons.notes_outlined),
+                          prefixIcon: const Icon(Icons.notes_outlined),
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       ),
@@ -812,59 +718,41 @@ class _ExpensePageState extends State<ExpensePage> {
 
                 FilledButton.icon(
                   onPressed: () async {
-                    final title =
-                        titleController.text.trim();
+                    final title = titleController.text.trim();
 
-                    final amountText =
-                        amountController.text.trim();
+                    final amountText = amountController.text.trim();
 
-                    final note =
-                        noteController.text.trim();
+                    final note = noteController.text.trim();
 
                     if (title.isEmpty) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Please enter an expense title',
-                          ),
+                          content: Text('Please enter an expense title'),
                         ),
                       );
                       return;
                     }
 
-                    final amount =
-                        double.tryParse(amountText);
+                    final amount = double.tryParse(amountText);
 
                     if (amount == null || amount <= 0) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Please enter a valid amount',
-                          ),
+                          content: Text('Please enter a valid amount'),
                         ),
                       );
                       return;
                     }
 
                     try {
-                      await DatabaseHelper.updateExpense(
-                        expense['id'] as int,
-                        {
-                          'title': title,
-                          'category':
-                              selectedCategoryValue,
-                          'amount': amount,
-                          'expense_date':
-                              selectedDate
-                                  .toIso8601String(),
-                          'payment_method':
-                              selectedPaymentMethodValue,
-                          'note':
-                              note.isEmpty ? null : note,
-                        },
-                      );
+                      await DatabaseHelper.updateExpense(expense['id'] as int, {
+                        'title': title,
+                        'category': selectedCategoryValue,
+                        'amount': amount,
+                        'expense_date': selectedDate.toIso8601String(),
+                        'payment_method': selectedPaymentMethodValue,
+                        'note': note.isEmpty ? null : note,
+                      });
 
                       if (!mounted) return;
 
@@ -874,24 +762,16 @@ class _ExpensePageState extends State<ExpensePage> {
 
                       if (!mounted) return;
 
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Expense updated successfully',
-                          ),
+                          content: Text('Expense updated successfully'),
                         ),
                       );
                     } catch (e) {
                       if (!mounted) return;
 
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Failed to update expense: $e',
-                          ),
-                        ),
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to update expense: $e')),
                       );
                     }
                   },
@@ -916,20 +796,15 @@ class _ExpensePageState extends State<ExpensePage> {
   // DELETE EXPENSE
   // =========================
 
-  Future<void> _deleteExpense(
-    Map<String, dynamic> expense,
-  ) async {
-    final title =
-        expense['title']?.toString() ?? 'this expense';
+  Future<void> _deleteExpense(Map<String, dynamic> expense) async {
+    final title = expense['title']?.toString() ?? 'this expense';
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Delete Expense'),
-          content: Text(
-            'Are you sure you want to delete "$title"?',
-          ),
+          content: Text('Are you sure you want to delete "$title"?'),
           actions: [
             TextButton(
               onPressed: () {
@@ -951,31 +826,21 @@ class _ExpensePageState extends State<ExpensePage> {
     if (confirmed != true) return;
 
     try {
-      await DatabaseHelper.deleteExpense(
-        expense['id'] as int,
-      );
+      await DatabaseHelper.deleteExpense(expense['id'] as int);
 
       await _loadExpenses();
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Expense deleted successfully',
-          ),
-        ),
+        const SnackBar(content: Text('Expense deleted successfully')),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to delete expense: $e',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete expense: $e')));
     }
   }
 
@@ -983,26 +848,20 @@ class _ExpensePageState extends State<ExpensePage> {
   // EXPENSE DETAILS
   // =========================
 
-  Future<void> _showExpenseDetails(
-    Map<String, dynamic> expense,
-  ) async {
-    final amount =
-        ((expense['amount'] as num?)?.toDouble() ?? 0);
+  Future<void> _showExpenseDetails(Map<String, dynamic> expense) async {
+    final amount = ((expense['amount'] as num?)?.toDouble() ?? 0);
 
-    final title =
-        expense['title']?.toString() ?? '-';
+    final title = expense['title']?.toString() ?? '-';
 
-    final category =
-        expense['category']?.toString() ?? '-';
+    final expenseId = expense['expense_id']?.toString() ?? '-';
 
-    final paymentMethod =
-        expense['payment_method']?.toString() ?? '-';
+    final category = expense['category']?.toString() ?? '-';
 
-    final expenseDate =
-        expense['expense_date']?.toString();
+    final paymentMethod = expense['payment_method']?.toString() ?? '-';
 
-    final note =
-        expense['note']?.toString() ?? '';
+    final expenseDate = expense['expense_date']?.toString();
+
+    final note = expense['note']?.toString() ?? '';
 
     await showDialog(
       context: context,
@@ -1010,25 +869,20 @@ class _ExpensePageState extends State<ExpensePage> {
         return AlertDialog(
           title: Row(
             children: [
-              Icon(
-                _getExpenseIcon(category),
-              ),
+              Icon(_getExpenseIcon(category)),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+              Expanded(child: Text(title, overflow: TextOverflow.ellipsis)),
             ],
           ),
           content: SizedBox(
             width: 500,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _expenseDetailRow('Expense ID', expenseId, Icons.tag),
+
+                const Divider(),
                 _expenseDetailRow(
                   'Category',
                   category,
@@ -1061,11 +915,7 @@ class _ExpensePageState extends State<ExpensePage> {
 
                 if (note.isNotEmpty) ...[
                   const Divider(),
-                  _expenseDetailRow(
-                    'Note',
-                    note,
-                    Icons.notes_outlined,
-                  ),
+                  _expenseDetailRow('Note', note, Icons.notes_outlined),
                 ],
               ],
             ),
@@ -1105,23 +955,13 @@ class _ExpensePageState extends State<ExpensePage> {
   // DETAIL ROW
   // =========================
 
-  Widget _expenseDetailRow(
-    String label,
-    String value,
-    IconData icon,
-  ) {
+  Widget _expenseDetailRow(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 22,
-          ),
+          Icon(icon, size: 22),
 
           const SizedBox(width: 12),
 
@@ -1129,15 +969,11 @@ class _ExpensePageState extends State<ExpensePage> {
             width: 130,
             child: Text(
               label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
 
-          Expanded(
-            child: Text(value),
-          ),
+          Expanded(child: Text(value)),
         ],
       ),
     );
@@ -1147,34 +983,40 @@ class _ExpensePageState extends State<ExpensePage> {
   // SUMMARY CARD
   // =========================
 
-  Widget _summaryCard(
-    String title,
-    double amount,
-    IconData icon,
-  ) {
+  Widget _summaryCard(String title, double amount, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Expanded(
       child: Card(
-        elevation: 1,
+        elevation: 0,
+        clipBehavior: Clip.antiAlias,
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 25,
-                child: Icon(icon),
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: colorScheme.primary, size: 25),
               ),
 
               const SizedBox(width: 14),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
 
@@ -1182,10 +1024,10 @@ class _ExpensePageState extends State<ExpensePage> {
 
                     Text(
                       'Rs. ${amount.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -1197,349 +1039,799 @@ class _ExpensePageState extends State<ExpensePage> {
     );
   }
 
+  //--------------------------------------------------------------------
+  //helper1
+  //--------------------------------------------------------------------
+
+  Widget _buildResponsiveSummaryCard(
+    String title,
+    double amount,
+    IconData icon,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: colorScheme.primary),
+            ),
+
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    'Rs. ${amount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  //----------------------------------------------------------------------
+  //helper2
+  //----------------------------------------------------------------------
+
+  Widget _buildExpenseCard({
+    required Map<String, dynamic> expense,
+    required String title,
+    required String category,
+    required String paymentMethod,
+    required String date,
+    required double amount,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          _showExpenseDetails(expense);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              // ============================================================
+              // ICON
+              // ============================================================
+
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  _getExpenseIcon(category),
+                  color: colorScheme.primary,
+                  size: 26,
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              // ============================================================
+              // EXPENSE INFORMATION
+              // ============================================================
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      expense['expense_id']?.toString() ?? 'EXP-????',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 5,
+                      children: [
+                        _expenseInfoChip(Icons.category_outlined, category),
+
+                        _expenseInfoChip(
+                          Icons.account_balance_wallet_outlined,
+                          paymentMethod,
+                        ),
+
+                        _expenseInfoChip(
+                          Icons.calendar_today_outlined,
+                          _formatDate(date),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // ============================================================
+              // AMOUNT + ACTIONS
+              // ============================================================
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Rs. ${amount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit Expense',
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        onPressed: () {
+                          _showEditExpenseDialog(expense);
+                        },
+                      ),
+
+                      IconButton(
+                        tooltip: 'Delete Expense',
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () {
+                          _deleteExpense(expense);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  //============================================
+
+  //expenseInfoChip
+  //================================================
+
+  Widget _expenseInfoChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey.shade700),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+        ],
+      ),
+    );
+  }
+
   // =========================
   // BUILD
   // =========================
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Expenses'),
-      ),
+      backgroundColor: colorScheme.surface,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSmallWidth = constraints.maxWidth < 1000;
 
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Expense Management',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ========================================================
+                  // HEADER
+                  // ========================================================
 
-            const SizedBox(height: 8),
+                  if (isSmallWidth)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            // BACK BUTTON
+                            IconButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.arrow_back),
+                              tooltip: 'Back',
+                            ),
 
-            const Text(
-              'Create and manage your business expenses',
-              style: TextStyle(
-                fontSize: 16,
-              ),
-            ),
+                            const SizedBox(width: 4),
 
-            const SizedBox(height: 25),
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.account_balance_wallet_outlined,
+                                color: colorScheme.primary,
+                                size: 25,
+                              ),
+                            ),
 
-            // =========================
-            // SUMMARY CARDS
-            // =========================
+                            const SizedBox(width: 12),
 
-            Row(
-              children: [
-                _summaryCard(
-                  'Total Expenses',
-                  _totalExpenses,
-                  Icons.account_balance_wallet_outlined,
-                ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Expenses',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
 
-                const SizedBox(width: 15),
+                                  const SizedBox(height: 3),
 
-                _summaryCard(
-                  'This Month',
-                  _thisMonthExpenses,
-                  Icons.calendar_month_outlined,
-                ),
-
-                const SizedBox(width: 15),
-
-                _summaryCard(
-                  'Today',
-                  _todayExpenses,
-                  Icons.today_outlined,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            // =========================
-            // SEARCH + FILTERS
-            // =========================
-
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: _searchExpenses,
-                    decoration: InputDecoration(
-                      hintText: 'Search Expenses...',
-                      prefixIcon:
-                          const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                DropdownButton<String>(
-                  value: selectedCategory,
-                  items: categories
-                      .map(
-                        (category) =>
-                            DropdownMenuItem<String>(
-                          value: category,
-                          child: Text(category),
+                                  Text(
+                                    'Track and manage your business expenses',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
 
-                    setState(() {
-                      selectedCategory = value;
-                    });
+                        const SizedBox(height: 12),
 
-                    _applyFilters();
-                  },
-                ),
-
-                const SizedBox(width: 15),
-
-                DropdownButton<String>(
-                  value: selectedPaymentMethod,
-                  items: paymentMethods
-                      .map(
-                        (method) =>
-                            DropdownMenuItem<String>(
-                          value: method,
-                          child: Text(method),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _showCreateExpenseDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Create Expense'),
+                          ),
                         ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-
-                    setState(() {
-                      selectedPaymentMethod = value;
-                    });
-
-                    _applyFilters();
-                  },
-                ),
-
-                const SizedBox(width: 15),
-
-                FilledButton.icon(
-                  onPressed:
-                      _showCreateExpenseDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Expense'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            // =========================
-            // EXPENSE LIST
-            // =========================
-
-            Expanded(
-              child: isLoadingExpenses
-                  ? const Center(
-                      child:
-                          CircularProgressIndicator(),
+                      ],
                     )
-                  : filteredExpenses.isEmpty
-                      ? Card(
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.receipt_long,
-                                  size: 70,
-                                ),
+                  else
+                    Row(
+                      children: [
+                        // BACK BUTTON
+                        IconButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.arrow_back),
+                          tooltip: 'Back',
+                        ),
 
-                                const SizedBox(height: 15),
+                        const SizedBox(width: 4),
 
-                                Text(
-                                  expenseSearchQuery
-                                              .isNotEmpty ||
-                                          selectedCategory !=
-                                              'All' ||
-                                          selectedPaymentMethod !=
-                                              'All'
-                                      ? 'No matching expenses found'
-                                      : 'No expenses yet',
-                                  style:
-                                      const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight:
-                                        FontWeight.bold,
-                                  ),
-                                ),
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.account_balance_wallet_outlined,
+                            color: colorScheme.primary,
+                            size: 28,
+                          ),
+                        ),
 
-                                const SizedBox(height: 10),
+                        const SizedBox(width: 14),
 
-                                if (expenseSearchQuery
-                                        .isEmpty &&
-                                    selectedCategory ==
-                                        'All' &&
-                                    selectedPaymentMethod ==
-                                        'All')
-                                  FilledButton.icon(
-                                    onPressed:
-                                        _showCreateExpenseDialog,
-                                    icon: const Icon(
-                                      Icons.add,
-                                    ),
-                                    label: const Text(
-                                      'Create Expense',
-                                    ),
-                                  ),
-                              ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Expense Management',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+
+                              const SizedBox(height: 4),
+
+                              Text(
+                                'Track and manage your business expenses',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        FilledButton.icon(
+                          onPressed: _showCreateExpenseDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Expense'),
+                        ),
+                      ],
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  // ========================================================
+                  // SUMMARY CARDS
+                  // ========================================================
+                  if (isSmallWidth)
+                    Column(
+                      children: [
+                        _buildResponsiveSummaryCard(
+                          'Total Expenses',
+                          _totalExpenses,
+                          Icons.account_balance_wallet_outlined,
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        _buildResponsiveSummaryCard(
+                          'This Month',
+                          _thisMonthExpenses,
+                          Icons.calendar_month_outlined,
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        _buildResponsiveSummaryCard(
+                          'Today',
+                          _todayExpenses,
+                          Icons.today_outlined,
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        _summaryCard(
+                          'Total Expenses',
+                          _totalExpenses,
+                          Icons.account_balance_wallet_outlined,
+                        ),
+
+                        const SizedBox(width: 15),
+
+                        _summaryCard(
+                          'This Month',
+                          _thisMonthExpenses,
+                          Icons.calendar_month_outlined,
+                        ),
+
+                        const SizedBox(width: 15),
+
+                        _summaryCard(
+                          'Today',
+                          _todayExpenses,
+                          Icons.today_outlined,
+                        ),
+                      ],
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  // ========================================================
+                  // SEARCH + FILTERS
+                  // ========================================================
+                  if (isSmallWidth)
+                    Column(
+                      children: [
+                        TextField(
+                          onChanged: _searchExpenses,
+                          decoration: InputDecoration(
+                            hintText: 'Search expenses...',
+                            prefixIcon: const Icon(Icons.search),
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.35),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
                             ),
                           ),
-                        )
-                      : Card(
-                          child: ListView.separated(
-                            padding:
-                                const EdgeInsets.all(12),
-                            itemCount:
-                                filteredExpenses.length,
-                            separatorBuilder:
-                                (context, index) =>
-                                    const Divider(),
-                            itemBuilder:
-                                (context, index) {
-                              final expense =
-                                  filteredExpenses[
-                                      index];
+                        ),
 
-                              final amount =
-                                  ((expense['amount']
-                                              as num?)
-                                          ?.toDouble() ??
-                                      0);
+                        const SizedBox(height: 10),
 
-                              final title =
-                                  expense['title']
-                                          ?.toString() ??
-                                      '-';
-
-                              final category =
-                                  expense['category']
-                                          ?.toString() ??
-                                      '-';
-
-                              final paymentMethod =
-                                  expense[
-                                              'payment_method']
-                                          ?.toString() ??
-                                      '-';
-
-                              final date =
-                                  expense['expense_date']
-                                          ?.toString();
-
-                              return ListTile(
-                                contentPadding:
-                                    const EdgeInsets
-                                        .symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-
-                                leading: CircleAvatar(
-                                  child: Icon(
-                                    _getExpenseIcon(
-                                      category,
-                                    ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                initialValue: selectedCategory,
+                                decoration: InputDecoration(
+                                  labelText: 'Category',
+                                  prefixIcon: const Icon(
+                                    Icons.category_outlined,
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.35),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
                                   ),
                                 ),
-
-                                title: Text(
-                                  title,
-                                  style:
-                                      const TextStyle(
-                                    fontWeight:
-                                        FontWeight.bold,
-                                  ),
-                                ),
-
-                                subtitle: Text(
-                                  '$category • '
-                                  '$paymentMethod • '
-                                  '${_formatDate(date)}',
-                                ),
-
-                                trailing: Row(
-                                  mainAxisSize:
-                                      MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Rs. ${amount.toStringAsFixed(2)}',
-                                      style:
-                                          const TextStyle(
-                                        fontWeight:
-                                            FontWeight.bold,
-                                        fontSize: 16,
+                                items: categories
+                                    .map(
+                                      (category) => DropdownMenuItem<String>(
+                                        value: category,
+                                        child: Text(category),
                                       ),
-                                    ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  if (value == null) {
+                                    return;
+                                  }
 
-                                    const SizedBox(
-                                      width: 15,
-                                    ),
+                                  setState(() {
+                                    selectedCategory = value;
+                                  });
 
-                                    IconButton(
-                                      tooltip:
-                                          'Edit Expense',
-                                      icon: const Icon(
-                                        Icons.edit_outlined,
-                                      ),
-                                      onPressed: () {
-                                        _showEditExpenseDialog(
-                                          expense,
-                                        );
-                                      },
-                                    ),
-
-                                    IconButton(
-                                      tooltip:
-                                          'Delete Expense',
-                                      icon: const Icon(
-                                        Icons
-                                            .delete_outline,
-                                      ),
-                                      onPressed: () {
-                                        _deleteExpense(
-                                          expense,
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-
-                                onTap: () {
-                                  _showExpenseDetails(
-                                    expense,
-                                  );
+                                  _applyFilters();
                                 },
-                              );
+                              ),
+                            ),
+
+                            const SizedBox(width: 10),
+
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                initialValue: selectedPaymentMethod,
+                                decoration: InputDecoration(
+                                  labelText: 'Payment',
+                                  prefixIcon: const Icon(
+                                    Icons.account_balance_wallet_outlined,
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.35),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                                items: paymentMethods
+                                    .map(
+                                      (method) => DropdownMenuItem<String>(
+                                        value: method,
+                                        child: Text(method),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+
+                                  setState(() {
+                                    selectedPaymentMethod = value;
+                                  });
+
+                                  _applyFilters();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            onChanged: _searchExpenses,
+                            decoration: InputDecoration(
+                              hintText: 'Search expenses, categories or payment methods...',
+                              prefixIcon: const Icon(Icons.search),
+                              filled: true,
+                              fillColor: colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedCategory,
+                            decoration: InputDecoration(
+                              labelText: 'Category',
+                              prefixIcon: const Icon(Icons.category_outlined),
+                              filled: true,
+                              fillColor: colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            items: categories
+                                .map(
+                                  (category) => DropdownMenuItem<String>(
+                                    value: category,
+                                    child: Text(category),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+
+                              setState(() {
+                                selectedCategory = value;
+                              });
+
+                              _applyFilters();
                             },
                           ),
                         ),
-            ),
-          ],
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedPaymentMethod,
+                            decoration: InputDecoration(
+                              labelText: 'Payment',
+                              prefixIcon: const Icon(
+                                Icons.account_balance_wallet_outlined,
+                              ),
+                              filled: true,
+                              fillColor: colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            items: paymentMethods
+                                .map(
+                                  (method) => DropdownMenuItem<String>(
+                                    value: method,
+                                    child: Text(method),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+
+                              setState(() {
+                                selectedPaymentMethod = value;
+                              });
+
+                              _applyFilters();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  const SizedBox(height: 10),
+
+                  // ========================================================
+                  // RESULT COUNT + CLEAR
+                  // ========================================================
+                  Row(
+                    children: [
+                      Text(
+                        '${filteredExpenses.length} expense'
+                        '${filteredExpenses.length == 1 ? '' : 's'}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+
+                      const Spacer(),
+
+                      if (expenseSearchQuery.isNotEmpty ||
+                          selectedCategory != 'All' ||
+                          selectedPaymentMethod != 'All')
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              expenseSearchQuery = '';
+                              selectedCategory = 'All';
+                              selectedPaymentMethod = 'All';
+                              filteredExpenses = List.from(expenses);
+                            });
+                          },
+                          icon: const Icon(Icons.clear, size: 18),
+                          label: const Text('Clear Filters'),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // ========================================================
+                  // EXPENSE LIST
+                  // ========================================================
+                  Expanded(
+                    child: isLoadingExpenses
+                        ? const Center(child: CircularProgressIndicator())
+                        : filteredExpenses.isEmpty
+                        ? Card(
+                            elevation: 0,
+                            clipBehavior: Clip.antiAlias,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(22),
+                                    ),
+                                    child: Icon(
+                                      Icons.receipt_long_outlined,
+                                      size: 42,
+                                      color: colorScheme.primary,
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 18),
+
+                                  Text(
+                                    expenseSearchQuery.isNotEmpty ||
+                                            selectedCategory != 'All' ||
+                                            selectedPaymentMethod != 'All'
+                                        ? 'No matching expenses found'
+                                        : 'No expenses yet',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  if (expenseSearchQuery.isEmpty &&
+                                      selectedCategory == 'All' &&
+                                      selectedPaymentMethod == 'All')
+                                    FilledButton.icon(
+                                      onPressed: _showCreateExpenseDialog,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Create Expense'),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Card(
+                            elevation: 0,
+                            clipBehavior: Clip.antiAlias,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: filteredExpenses.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final expense = filteredExpenses[index];
+
+                                final amount =
+                                    ((expense['amount'] as num?)?.toDouble() ??
+                                    0);
+
+                                final title =
+                                    expense['title']?.toString() ?? '-';
+
+                                final category =
+                                    expense['category']?.toString() ?? '-';
+
+                                final paymentMethod =
+                                    expense['payment_method']?.toString() ??
+                                    '-';
+
+                                final date =
+                                    expense['expense_date']?.toString() ?? '';
+
+                                return _buildExpenseCard(
+                                  expense: expense,
+                                  title: title,
+                                  category: category,
+                                  paymentMethod: paymentMethod,
+                                  date: date,
+                                  amount: amount,
+                                );
+                              },
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );

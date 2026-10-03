@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import '../../db/database_helper.dart';
-import '../../service/invoice_pdf_service.dart';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../db/database_helper.dart';
+import '../../service/invoice_pdf_service.dart';
 
 class InvoicePage extends StatefulWidget {
   const InvoicePage({super.key});
@@ -17,19 +18,12 @@ class _InvoicePageState extends State<InvoicePage> {
   // INVOICE LIST DATA
   // ============================================================
 
-  // All invoices loaded from the database.
   List<Map<String, dynamic>> invoices = [];
-
-  // Invoices displayed after search + status filtering.
   List<Map<String, dynamic>> filteredInvoices = [];
 
-  // Loading state for invoice list.
   bool isLoadingInvoices = true;
 
-  // Current invoice search text.
   String invoiceSearchQuery = '';
-
-  // Current selected invoice status filter.
   String selectedStatus = 'All';
 
   // ============================================================
@@ -37,35 +31,29 @@ class _InvoicePageState extends State<InvoicePage> {
   // ============================================================
 
   Future<void> _showCreateInvoiceDialog() async {
-    // Automatically generate an invoice number.
     final invoiceNumberController = TextEditingController(
       text: 'INV-${DateTime.now().millisecondsSinceEpoch}',
     );
 
-    // Selected customer information.
     String? selectedCustomer;
     int? selectedCustomerId;
 
-    // Default invoice date.
     DateTime selectedDate = DateTime.now();
-    //default due date invice date--->30dys
     DateTime selectedDueDate = DateTime.now().add(const Duration(days: 30));
 
-    // Invoice item controllers.
     final itemDescriptionController = TextEditingController();
     final quantityController = TextEditingController(text: '1');
     final unitPriceController = TextEditingController(text: '0');
 
-    // Invoice calculation values.
     double itemTotal = 0;
     List<Map<String, dynamic>> invoiceItems = [];
+
     double subtotal = 0;
     double discount = 0;
     double taxPercent = 0;
     double taxAmount = 0;
     double grandTotal = 0;
 
-    // Load real customers from SQLite database.
     final customers = await DatabaseHelper.getCustomers();
 
     if (!mounted) return;
@@ -76,21 +64,13 @@ class _InvoicePageState extends State<InvoicePage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              // ============================================================
-              // CREATE INVOICE TITLE
-              // ============================================================
-
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.receipt_long),
-                  SizedBox(width: 10),
-                  Text('Create Invoice'),
+                  _buildDialogIcon(Icons.receipt_long_outlined),
+                  const SizedBox(width: 10),
+                  const Text('Create Invoice'),
                 ],
               ),
-
-              // ============================================================
-              // CREATE INVOICE CONTENT
-              // ============================================================
               content: SizedBox(
                 width: 550,
                 child: SingleChildScrollView(
@@ -98,27 +78,18 @@ class _InvoicePageState extends State<InvoicePage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ======================================================
-                      // INVOICE DETAILS
-                      // ======================================================
-
-                      const Text(
+                      _buildSectionTitle(
                         'Invoice Details',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        Icons.description_outlined,
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                      // Customer dropdown.
                       DropdownButtonFormField<String>(
                         initialValue: selectedCustomer,
-                        decoration: const InputDecoration(
-                          labelText: 'Customer',
-                          prefixIcon: Icon(Icons.person_outline),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Customer',
+                          Icons.person_outline,
                         ),
                         hint: const Text('Select Customer'),
                         items: customers.map((customer) {
@@ -139,24 +110,50 @@ class _InvoicePageState extends State<InvoicePage> {
                         },
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Invoice number.
                       TextField(
                         controller: invoiceNumberController,
-                        decoration: const InputDecoration(
-                          labelText: 'Invoice Number',
-                          prefixIcon: Icon(Icons.numbers),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Invoice Number',
+                          Icons.numbers,
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Invoice date picker.
-                      const SizedBox(height: 18),
+                      InkWell(
+                        onTap: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
 
-                      // Due date picker.
+                          if (pickedDate != null) {
+                            setDialogState(() {
+                              selectedDate = pickedDate;
+
+                              if (selectedDueDate.isBefore(selectedDate)) {
+                                selectedDueDate = selectedDate.add(
+                                  const Duration(days: 30),
+                                );
+                              }
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: _inputDecoration(
+                            'Invoice Date',
+                            Icons.calendar_today_outlined,
+                          ),
+                          child: Text(_formatDate(selectedDate)),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
                       InkWell(
                         onTap: () async {
                           final pickedDueDate = await showDatePicker(
@@ -173,50 +170,34 @@ class _InvoicePageState extends State<InvoicePage> {
                           }
                         },
                         child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Due Date',
-                            prefixIcon: Icon(Icons.event_available),
-                            border: OutlineInputBorder(),
+                          decoration: _inputDecoration(
+                            'Due Date',
+                            Icons.event_available_outlined,
                           ),
-                          child: Text(
-                            '${selectedDueDate.day.toString().padLeft(2, '0')}/'
-                            '${selectedDueDate.month.toString().padLeft(2, '0')}/'
-                            '${selectedDueDate.year}',
-                          ),
+                          child: Text(_formatDate(selectedDueDate)),
                         ),
                       ),
 
-                      // ======================================================
-                      // INVOICE ITEM
-                      // ======================================================
-                      const SizedBox(height: 30),
-                      const Divider(),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 28),
 
-                      const Text(
+                      _buildSectionTitle(
                         'Invoice Item',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        Icons.inventory_2_outlined,
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Item description.
                       TextField(
                         controller: itemDescriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          hintText: 'Enter product or service',
-                          prefixIcon: Icon(Icons.inventory_2_outlined),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Description',
+                          Icons.inventory_2_outlined,
+                          hint: 'Enter product or service',
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Quantity + unit price.
                       Row(
                         children: [
                           Expanded(
@@ -236,16 +217,13 @@ class _InvoicePageState extends State<InvoicePage> {
                                   itemTotal = quantity * unitPrice;
                                 });
                               },
-                              decoration: const InputDecoration(
-                                labelText: 'Quantity',
-                                prefixIcon: Icon(Icons.numbers),
-                                border: OutlineInputBorder(),
+                              decoration: _inputDecoration(
+                                'Quantity',
+                                Icons.numbers,
                               ),
                             ),
                           ),
-
-                          const SizedBox(width: 15),
-
+                          const SizedBox(width: 12),
                           Expanded(
                             child: TextField(
                               controller: unitPriceController,
@@ -266,52 +244,25 @@ class _InvoicePageState extends State<InvoicePage> {
                                   itemTotal = quantity * unitPrice;
                                 });
                               },
-                              decoration: const InputDecoration(
-                                labelText: 'Unit Price',
-                                prefixIcon: Icon(Icons.attach_money),
-                                border: OutlineInputBorder(),
+                              decoration: _inputDecoration(
+                                'Unit Price',
+                                Icons.attach_money,
                               ),
                             ),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
-                      // Current item total.
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Item Total',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'Rs. ${itemTotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildAmountBox(
+                        'Item Total',
+                        itemTotal,
+                        icon: Icons.calculate_outlined,
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
-                      // Add item button.
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -325,7 +276,6 @@ class _InvoicePageState extends State<InvoicePage> {
                             final unitPrice =
                                 double.tryParse(unitPriceController.text) ?? 0;
 
-                            // Validate description.
                             if (description.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -337,7 +287,6 @@ class _InvoicePageState extends State<InvoicePage> {
                               return;
                             }
 
-                            // Validate quantity.
                             if (quantity <= 0) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -349,7 +298,6 @@ class _InvoicePageState extends State<InvoicePage> {
                               return;
                             }
 
-                            // Validate price.
                             if (unitPrice <= 0) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -364,7 +312,6 @@ class _InvoicePageState extends State<InvoicePage> {
                             setDialogState(() {
                               final total = quantity * unitPrice;
 
-                              // Add item to temporary invoice item list.
                               invoiceItems.add({
                                 'description': description,
                                 'quantity': quantity,
@@ -372,7 +319,6 @@ class _InvoicePageState extends State<InvoicePage> {
                                 'total': total,
                               });
 
-                              // Update calculations.
                               subtotal += total;
 
                               taxAmount =
@@ -380,7 +326,6 @@ class _InvoicePageState extends State<InvoicePage> {
 
                               grandTotal = subtotal - discount + taxAmount;
 
-                              // Reset item inputs.
                               itemDescriptionController.clear();
                               quantityController.text = '1';
                               unitPriceController.text = '0';
@@ -392,21 +337,12 @@ class _InvoicePageState extends State<InvoicePage> {
                         ),
                       ),
 
-                      const SizedBox(height: 20),
-
-                      // ======================================================
-                      // ADDED ITEMS
-                      // ======================================================
                       if (invoiceItems.isNotEmpty) ...[
-                        const Divider(),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 24),
 
-                        const Text(
+                        _buildSectionTitle(
                           'Added Items',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          Icons.list_alt_outlined,
                         ),
 
                         const SizedBox(height: 10),
@@ -416,15 +352,34 @@ class _InvoicePageState extends State<InvoicePage> {
                           final item = entry.value;
 
                           return Card(
-                            margin: const EdgeInsets.only(bottom: 10),
+                            elevation: 0,
+                            margin: const EdgeInsets.only(bottom: 8),
                             child: ListTile(
-                              leading: CircleAvatar(
-                                child: Text('${index + 1}'),
+                              leading: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
+                                    ),
+                                  ),
+                                ),
                               ),
                               title: Text(
                                 item['description'],
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               subtitle: Text(
@@ -435,13 +390,12 @@ class _InvoicePageState extends State<InvoicePage> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'Rs. ${item['total'].toStringAsFixed(2)}',
+                                    'Rs. '
+                                    '${item['total'].toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-
-                                  // Delete item.
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline),
                                     onPressed: () {
@@ -466,11 +420,8 @@ class _InvoicePageState extends State<InvoicePage> {
                           );
                         }),
 
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 12),
 
-                        // ====================================================
-                        // TAX
-                        // ====================================================
                         TextField(
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
@@ -493,66 +444,27 @@ class _InvoicePageState extends State<InvoicePage> {
                               grandTotal = subtotal - discount + taxAmount;
                             });
                           },
-                          decoration: const InputDecoration(
-                            labelText: 'Tax',
-                            hintText: 'Enter tax percentage',
-                            prefixIcon: Icon(Icons.percent),
-                            suffixText: '%',
-                            border: OutlineInputBorder(),
-                          ),
+                          decoration: _inputDecoration(
+                            'Tax',
+                            Icons.percent,
+                            hint: 'Enter tax percentage',
+                          ).copyWith(suffixText: '%'),
                         ),
 
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 14),
 
-                        // Tax amount.
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Tax Amount',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              'Rs. ${taxAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                        _buildCalculationRow('Tax Amount', taxAmount),
 
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 8),
+
                         const Divider(),
-                        const SizedBox(height: 10),
 
-                        // Subtotal.
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Subtotal',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'Rs. ${subtotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                        const SizedBox(height: 8),
 
-                        const SizedBox(height: 15),
+                        _buildCalculationRow('Subtotal', subtotal, bold: true),
 
-                        // Discount.
+                        const SizedBox(height: 14),
+
                         TextField(
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
@@ -575,56 +487,21 @@ class _InvoicePageState extends State<InvoicePage> {
                               grandTotal = subtotal - discount + taxAmount;
                             });
                           },
-                          decoration: const InputDecoration(
-                            labelText: 'Discount',
-                            hintText: 'Enter discount amount',
-                            prefixIcon: Icon(Icons.discount_outlined),
-                            prefixText: 'Rs. ',
-                            border: OutlineInputBorder(),
-                          ),
+                          decoration: _inputDecoration(
+                            'Discount',
+                            Icons.discount_outlined,
+                            hint: 'Enter discount amount',
+                          ).copyWith(prefixText: 'Rs. '),
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 18),
 
-                        // Grand total.
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Grand Total',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                'Rs. ${grandTotal.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        _buildGrandTotalBox(grandTotal),
                       ],
                     ],
                   ),
                 ),
               ),
-
-              // ============================================================
-              // CREATE INVOICE ACTION BUTTONS
-              // ============================================================
               actions: [
                 TextButton(
                   onPressed: () {
@@ -632,10 +509,8 @@ class _InvoicePageState extends State<InvoicePage> {
                   },
                   child: const Text('Cancel'),
                 ),
-
                 FilledButton.icon(
                   onPressed: () async {
-                    // Customer validation.
                     if (selectedCustomerId == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -645,7 +520,6 @@ class _InvoicePageState extends State<InvoicePage> {
                       return;
                     }
 
-                    // Item validation.
                     if (invoiceItems.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -657,7 +531,6 @@ class _InvoicePageState extends State<InvoicePage> {
 
                     final now = DateTime.now().toIso8601String();
 
-                    // Invoice database record.
                     final invoice = {
                       'invoice_number': invoiceNumberController.text.trim(),
                       'customer_id': selectedCustomerId!,
@@ -668,15 +541,11 @@ class _InvoicePageState extends State<InvoicePage> {
                       'tax_percent': taxPercent,
                       'tax_amount': taxAmount,
                       'grand_total': grandTotal,
-
-                      // New invoices start as Draft.
                       'status': 'Draft',
-
                       'created_at': now,
                       'updated_at': now,
                     };
 
-                    // Convert UI items into database items.
                     final items = invoiceItems.map((item) {
                       return {
                         'description': item['description'],
@@ -687,7 +556,6 @@ class _InvoicePageState extends State<InvoicePage> {
                     }).toList();
 
                     try {
-                      // Save invoice + items in one database transaction.
                       await DatabaseHelper.saveInvoiceWithItems(
                         invoice: invoice,
                         items: items,
@@ -695,10 +563,8 @@ class _InvoicePageState extends State<InvoicePage> {
 
                       if (!mounted) return;
 
-                      // Refresh invoice list immediately.
                       await _loadInvoices();
 
-                      // Close create dialog.
                       Navigator.pop(context);
 
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -732,7 +598,6 @@ class _InvoicePageState extends State<InvoicePage> {
   Future<void> _loadInvoices() async {
     final data = await DatabaseHelper.getInvoices();
 
-    // Automatically mark unpaid invoices as overdue.
     for (final invoice in data) {
       final dueDateString = invoice['due_date']?.toString();
 
@@ -754,7 +619,6 @@ class _InvoicePageState extends State<InvoicePage> {
 
       final currentStatus = invoice['status']?.toString() ?? 'Draft';
 
-      // Remove time from today's date for accurate comparison.
       final today = DateTime(
         DateTime.now().year,
         DateTime.now().month,
@@ -781,7 +645,6 @@ class _InvoicePageState extends State<InvoicePage> {
     setState(() {
       invoices = data;
 
-      // Apply current search + status filter after refreshing.
       filteredInvoices = invoices.where((invoice) {
         final invoiceNumber =
             invoice['invoice_number']?.toString().toLowerCase() ?? '';
@@ -811,7 +674,7 @@ class _InvoicePageState extends State<InvoicePage> {
   }
 
   // ============================================================
-  // SEARCH + STATUS FILTER
+  // SEARCH + FILTER
   // ============================================================
 
   void _searchInvoices(String query) {
@@ -832,18 +695,15 @@ class _InvoicePageState extends State<InvoicePage> {
 
         final status = invoice['status']?.toString() ?? 'Draft';
 
-        // Search matching.
         final matchesSearch =
             searchQuery.isEmpty ||
             invoiceNumber.contains(searchQuery) ||
             customerName.contains(searchQuery) ||
             customerPhone.contains(searchQuery);
 
-        // Status matching.
         final matchesStatus =
             selectedStatus == 'All' || status == selectedStatus;
 
-        // Invoice must match BOTH conditions.
         return matchesSearch && matchesStatus;
       }).toList();
     });
@@ -854,25 +714,20 @@ class _InvoicePageState extends State<InvoicePage> {
   // ============================================================
 
   Future<void> _showEditInvoiceDialog(Map<String, dynamic> invoice) async {
-    // Load customers.
     final customers = await DatabaseHelper.getCustomers();
 
     final invoiceId = invoice['id'] as int;
 
-    // Load existing invoice items.
     final existingItems = await DatabaseHelper.getInvoiceItems(invoiceId);
 
-    // Invoice number controller.
     final invoiceNumberController = TextEditingController(
       text: invoice['invoice_number'].toString(),
     );
 
-    // Existing customer.
     String? selectedCustomer = invoice['customer_id'].toString();
 
     int? selectedCustomerId = invoice['customer_id'] as int?;
 
-    // Existing invoice date.
     DateTime selectedDate =
         DateTime.tryParse(invoice['invoice_date'].toString()) ?? DateTime.now();
 
@@ -880,14 +735,14 @@ class _InvoicePageState extends State<InvoicePage> {
         DateTime.tryParse(invoice['due_date']?.toString() ?? '') ??
         DateTime.now().add(const Duration(days: 30));
 
-    // New item controllers.
     final itemDescriptionController = TextEditingController();
+
     final quantityController = TextEditingController(text: '1');
+
     final unitPriceController = TextEditingController(text: '0');
 
     double itemTotal = 0;
 
-    // Convert database items into UI items.
     List<Map<String, dynamic>> invoiceItems = existingItems.map((item) {
       final quantity = double.tryParse(item['quantity'].toString()) ?? 0;
 
@@ -903,19 +758,15 @@ class _InvoicePageState extends State<InvoicePage> {
       };
     }).toList();
 
-    // Calculate existing subtotal.
     double subtotal = invoiceItems.fold(
       0,
       (sum, item) => sum + (item['total'] as double),
     );
 
-    // Existing discount.
     double discount = double.tryParse(invoice['discount'].toString()) ?? 0;
 
-    // Existing tax percentage.
     double taxPercent = double.tryParse(invoice['tax_percent'].toString()) ?? 0;
 
-    // Calculate tax and grand total.
     double taxAmount = (subtotal - discount) * taxPercent / 100;
 
     double grandTotal = subtotal - discount + taxAmount;
@@ -926,21 +777,13 @@ class _InvoicePageState extends State<InvoicePage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              // ============================================================
-              // EDIT TITLE
-              // ============================================================
-
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.edit_outlined),
-                  SizedBox(width: 10),
-                  Text('Edit Invoice'),
+                  _buildDialogIcon(Icons.edit_outlined),
+                  const SizedBox(width: 10),
+                  const Text('Edit Invoice'),
                 ],
               ),
-
-              // ============================================================
-              // EDIT CONTENT
-              // ============================================================
               content: SizedBox(
                 width: 550,
                 child: SingleChildScrollView(
@@ -948,23 +791,18 @@ class _InvoicePageState extends State<InvoicePage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      _buildSectionTitle(
                         'Invoice Details',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        Icons.description_outlined,
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                      // Customer dropdown.
                       DropdownButtonFormField<String>(
                         initialValue: selectedCustomer,
-                        decoration: const InputDecoration(
-                          labelText: 'Customer',
-                          prefixIcon: Icon(Icons.person_outline),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Customer',
+                          Icons.person_outline,
                         ),
                         items: customers.map((customer) {
                           return DropdownMenuItem<String>(
@@ -985,21 +823,18 @@ class _InvoicePageState extends State<InvoicePage> {
                         },
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Invoice number.
                       TextField(
                         controller: invoiceNumberController,
-                        decoration: const InputDecoration(
-                          labelText: 'Invoice Number',
-                          prefixIcon: Icon(Icons.numbers),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Invoice Number',
+                          Icons.numbers,
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Invoice date.
                       InkWell(
                         onTap: () async {
                           final pickedDate = await showDatePicker(
@@ -1012,24 +847,25 @@ class _InvoicePageState extends State<InvoicePage> {
                           if (pickedDate != null) {
                             setDialogState(() {
                               selectedDate = pickedDate;
+
+                              if (selectedDueDate.isBefore(selectedDate)) {
+                                selectedDueDate = selectedDate.add(
+                                  const Duration(days: 30),
+                                );
+                              }
                             });
                           }
                         },
                         child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Invoice Date',
-                            prefixIcon: Icon(Icons.calendar_today),
-                            border: OutlineInputBorder(),
+                          decoration: _inputDecoration(
+                            'Invoice Date',
+                            Icons.calendar_today_outlined,
                           ),
-                          child: Text(
-                            '${selectedDate.day.toString().padLeft(2, '0')}/'
-                            '${selectedDate.month.toString().padLeft(2, '0')}/'
-                            '${selectedDate.year}',
-                          ),
+                          child: Text(_formatDate(selectedDate)),
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
                       InkWell(
                         onTap: () async {
@@ -1047,32 +883,19 @@ class _InvoicePageState extends State<InvoicePage> {
                           }
                         },
                         child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Due Date',
-                            prefixIcon: Icon(Icons.event_available),
-                            border: OutlineInputBorder(),
+                          decoration: _inputDecoration(
+                            'Due Date',
+                            Icons.event_available_outlined,
                           ),
-                          child: Text(
-                            '${selectedDueDate.day.toString().padLeft(2, '0')}/'
-                            '${selectedDueDate.month.toString().padLeft(2, '0')}/'
-                            '${selectedDueDate.year}',
-                          ),
+                          child: Text(_formatDate(selectedDueDate)),
                         ),
                       ),
 
-                      const SizedBox(height: 30),
-                      const Divider(),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 26),
 
-                      // ======================================================
-                      // EXISTING INVOICE ITEMS
-                      // ======================================================
-                      const Text(
+                      _buildSectionTitle(
                         'Invoice Items',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        Icons.list_alt_outlined,
                       ),
 
                       const SizedBox(height: 10),
@@ -1082,13 +905,34 @@ class _InvoicePageState extends State<InvoicePage> {
                         final item = entry.value;
 
                         return Card(
-                          margin: const EdgeInsets.only(bottom: 10),
+                          elevation: 0,
+                          margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
-                            leading: CircleAvatar(child: Text('${index + 1}')),
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
+                                  ),
+                                ),
+                              ),
+                            ),
                             title: Text(
                               item['description'].toString(),
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             subtitle: Text(
@@ -1105,8 +949,6 @@ class _InvoicePageState extends State<InvoicePage> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-
-                                // Delete existing item.
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline),
                                   onPressed: () {
@@ -1135,22 +977,18 @@ class _InvoicePageState extends State<InvoicePage> {
                         );
                       }),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 12),
 
-                      // ======================================================
-                      // ADD NEW ITEM
-                      // ======================================================
                       TextField(
                         controller: itemDescriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          hintText: 'Enter product or service',
-                          prefixIcon: Icon(Icons.inventory_2_outlined),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Description',
+                          Icons.inventory_2_outlined,
+                          hint: 'Enter product or service',
                         ),
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
                       Row(
                         children: [
@@ -1171,16 +1009,13 @@ class _InvoicePageState extends State<InvoicePage> {
                                   itemTotal = quantity * unitPrice;
                                 });
                               },
-                              decoration: const InputDecoration(
-                                labelText: 'Quantity',
-                                prefixIcon: Icon(Icons.numbers),
-                                border: OutlineInputBorder(),
+                              decoration: _inputDecoration(
+                                'Quantity',
+                                Icons.numbers,
                               ),
                             ),
                           ),
-
-                          const SizedBox(width: 15),
-
+                          const SizedBox(width: 12),
                           Expanded(
                             child: TextField(
                               controller: unitPriceController,
@@ -1201,50 +1036,25 @@ class _InvoicePageState extends State<InvoicePage> {
                                   itemTotal = quantity * unitPrice;
                                 });
                               },
-                              decoration: const InputDecoration(
-                                labelText: 'Unit Price',
-                                prefixIcon: Icon(Icons.attach_money),
-                                border: OutlineInputBorder(),
+                              decoration: _inputDecoration(
+                                'Unit Price',
+                                Icons.attach_money,
                               ),
                             ),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
-                      // New item total.
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Item Total',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              'Rs. '
-                              '${itemTotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildAmountBox(
+                        'Item Total',
+                        itemTotal,
+                        icon: Icons.calculate_outlined,
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
-                      // Add new item.
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -1288,10 +1098,12 @@ class _InvoicePageState extends State<InvoicePage> {
 
                               grandTotal = subtotal - discount + taxAmount;
 
-                              // Reset item fields.
                               itemDescriptionController.clear();
+
                               quantityController.text = '1';
+
                               unitPriceController.text = '0';
+
                               itemTotal = 0;
                             });
                           },
@@ -1301,16 +1113,12 @@ class _InvoicePageState extends State<InvoicePage> {
                       ),
 
                       const SizedBox(height: 20),
+
                       const Divider(),
+
                       const SizedBox(height: 15),
 
-                      // ======================================================
-                      // TAX
-                      // ======================================================
                       TextField(
-                        controller: TextEditingController(
-                          text: taxPercent.toString(),
-                        ),
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -1332,33 +1140,22 @@ class _InvoicePageState extends State<InvoicePage> {
                             grandTotal = subtotal - discount + taxAmount;
                           });
                         },
-                        decoration: const InputDecoration(
-                          labelText: 'Tax',
-                          suffixText: '%',
-                          prefixIcon: Icon(Icons.percent),
-                          border: OutlineInputBorder(),
-                        ),
+                        decoration: _inputDecoration(
+                          'Tax',
+                          Icons.percent,
+                        ).copyWith(suffixText: '%'),
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
-                      Text(
-                        'Tax Amount: Rs. '
-                        '${taxAmount.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
+                      _buildCalculationRow('Tax Amount', taxAmount),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 8),
 
-                      Text(
-                        'Subtotal: Rs. '
-                        '${subtotal.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                      _buildCalculationRow('Subtotal', subtotal, bold: true),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
-                      // Discount.
                       TextField(
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -1381,55 +1178,19 @@ class _InvoicePageState extends State<InvoicePage> {
                             grandTotal = subtotal - discount + taxAmount;
                           });
                         },
-                        decoration: const InputDecoration(
-                          labelText: 'Discount',
-                          prefixText: 'Rs. ',
-                          prefixIcon: Icon(Icons.discount_outlined),
-                          border: OutlineInputBorder(),
-                        ),
+                        decoration: _inputDecoration(
+                          'Discount',
+                          Icons.discount_outlined,
+                        ).copyWith(prefixText: 'Rs. '),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                      // Grand total.
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Grand Total',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'Rs. '
-                              '${grandTotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildGrandTotalBox(grandTotal),
                     ],
                   ),
                 ),
               ),
-
-              // ============================================================
-              // EDIT ACTION BUTTONS
-              // ============================================================
               actions: [
                 TextButton(
                   onPressed: () {
@@ -1437,7 +1198,6 @@ class _InvoicePageState extends State<InvoicePage> {
                   },
                   child: const Text('Cancel'),
                 ),
-
                 FilledButton.icon(
                   onPressed: () async {
                     if (selectedCustomerId == null) {
@@ -1458,7 +1218,6 @@ class _InvoicePageState extends State<InvoicePage> {
                       return;
                     }
 
-                    // Updated invoice data.
                     final updatedInvoice = {
                       'invoice_number': invoiceNumberController.text.trim(),
                       'customer_id': selectedCustomerId!,
@@ -1469,14 +1228,10 @@ class _InvoicePageState extends State<InvoicePage> {
                       'tax_percent': taxPercent,
                       'tax_amount': taxAmount,
                       'grand_total': grandTotal,
-
-                      // Keep existing status.
                       'status': invoice['status'],
-
                       'updated_at': DateTime.now().toIso8601String(),
                     };
 
-                    // Convert items to database format.
                     final updatedItems = invoiceItems.map((item) {
                       return {
                         'description': item['description'],
@@ -1495,10 +1250,8 @@ class _InvoicePageState extends State<InvoicePage> {
 
                       if (!mounted) return;
 
-                      // Close edit dialog.
                       Navigator.pop(context);
 
-                      // Refresh invoice list.
                       await _loadInvoices();
 
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1525,9 +1278,9 @@ class _InvoicePageState extends State<InvoicePage> {
     );
   }
 
-  //==========================================================
-  //PDF genartor
-  //=========================================================
+  // ============================================================
+  // PDF GENERATOR
+  // ============================================================
 
   Future<void> _generateInvoicePdf(Map<String, dynamic> invoice) async {
     try {
@@ -1574,12 +1327,10 @@ class _InvoicePageState extends State<InvoicePage> {
   Future<void> _showInvoiceDetails(Map<String, dynamic> invoice) async {
     final invoiceId = invoice['id'] as int;
 
-    // Load invoice items.
     final items = await DatabaseHelper.getInvoiceItems(invoiceId);
 
-    // Load payment summary.
     final paidAmount = await DatabaseHelper.getInvoicePaidAmount(invoiceId);
-    // Load payment history.
+
     final payments = await DatabaseHelper.getInvoicePayments(invoiceId);
 
     final grandTotal = (invoice['grand_total'] as num).toDouble();
@@ -1592,84 +1343,45 @@ class _InvoicePageState extends State<InvoicePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          // Invoice number title + Add Payment button.
           title: Row(
             children: [
-              const Icon(Icons.receipt_long),
-
+              _buildDialogIcon(Icons.receipt_long_outlined),
               const SizedBox(width: 10),
-
               Expanded(child: Text(invoice['invoice_number'].toString())),
-
-              const SizedBox(width: 15),
-
-              ElevatedButton.icon(
+              const SizedBox(width: 10),
+              FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
-
                   _showAddPaymentDialog(invoice);
                 },
-                icon: const Icon(Icons.payment_outlined),
-                label: const Text('Add Payment'),
+                icon: const Icon(Icons.payment_outlined, size: 18),
+                label: const Text('Payment'),
               ),
-              const SizedBox(width: 10),
-
-              ElevatedButton.icon(
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
                 onPressed: () {
                   _generateInvoicePdf(invoice);
                 },
-                icon: const Icon(Icons.picture_as_pdf),
-                label: const Text('Export PDF'),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('PDF'),
               ),
             ],
           ),
-
-          // ============================================================
-          // DETAILS CONTENT
-          // ============================================================
           content: SizedBox(
             width: 600,
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Customer: '
-                    '${invoice['customer_name'] ?? 'Unknown Customer'}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  _buildDetailsCustomerCard(invoice),
 
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 16),
 
-                  Text(
-                    'Phone: '
-                    '${invoice['customer_phone'] ?? '-'}',
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  Text(
-                    'Invoice Date: '
-                    '${invoice['invoice_date'].toString().split('T').first}',
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  Text(
-                    'Due Date: '
-                    '${invoice['due_date'] != null ? invoice['due_date'].toString().split('T').first : '-'}',
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  // Current status.
-                  // Current invoice status
                   DropdownButtonFormField<String>(
                     initialValue: invoice['status'] ?? 'Draft',
-                    decoration: const InputDecoration(
-                      labelText: 'Invoice Status',
-                      prefixIcon: Icon(Icons.info_outline),
-                      border: OutlineInputBorder(),
+                    decoration: _inputDecoration(
+                      'Invoice Status',
+                      Icons.info_outline,
                     ),
                     items: const [
                       DropdownMenuItem(value: 'Draft', child: Text('Draft')),
@@ -1718,71 +1430,76 @@ class _InvoicePageState extends State<InvoicePage> {
                   ),
 
                   const SizedBox(height: 20),
-                  const Divider(),
-                  const SizedBox(height: 10),
 
-                  const Text(
-                    'Items',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                  _buildSectionTitle('Items', Icons.list_alt_outlined),
 
                   const SizedBox(height: 10),
 
-                  // Invoice items.
                   ...items.map((item) {
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(item['description'].toString()),
-                      subtitle: Text(
-                        '${item['quantity']} × '
-                        'Rs. '
-                        '${double.parse(item['unit_price'].toString()).toStringAsFixed(2)}',
-                      ),
-                      trailing: Text(
-                        'Rs. '
-                        '${double.parse(item['total'].toString()).toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                    return Card(
+                      elevation: 0,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: _buildSmallIcon(Icons.inventory_2_outlined),
+                        title: Text(item['description'].toString()),
+                        subtitle: Text(
+                          '${item['quantity']} × Rs. '
+                          '${double.parse(item['unit_price'].toString()).toStringAsFixed(2)}',
+                        ),
+                        trailing: Text(
+                          'Rs. '
+                          '${double.parse(item['total'].toString()).toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     );
                   }),
 
-                  const Divider(),
                   const SizedBox(height: 10),
 
-                  // Invoice summary.
-                  _invoiceSummaryRow('Subtotal', invoice['subtotal']),
-
-                  _invoiceSummaryRow('Discount', invoice['discount']),
-
-                  _invoiceSummaryRow('Tax', invoice['tax_amount']),
-
-                  const Divider(),
-
-                  _invoiceSummaryRow(
-                    'Grand Total',
-                    invoice['grand_total'],
-                    isGrandTotal: true,
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: [
+                          _invoiceSummaryRow('Subtotal', invoice['subtotal']),
+                          _invoiceSummaryRow('Discount', invoice['discount']),
+                          _invoiceSummaryRow('Tax', invoice['tax_amount']),
+                          const Divider(),
+                          _invoiceSummaryRow(
+                            'Grand Total',
+                            invoice['grand_total'],
+                            isGrandTotal: true,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 20),
 
-                  const Divider(),
-
-                  const SizedBox(height: 10),
-
-                  const Text(
+                  _buildSectionTitle(
                     'Payment History',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    Icons.payments_outlined,
                   ),
 
                   const SizedBox(height: 10),
 
                   if (payments.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 10),
-                      child: Text(
-                        'No payments recorded yet.',
-                        style: TextStyle(color: Colors.grey),
+                    Card(
+                      elevation: 0,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            _buildSmallIcon(Icons.payment_outlined),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text('No payments recorded yet.'),
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   else
@@ -1800,26 +1517,22 @@ class _InvoicePageState extends State<InvoicePage> {
                       final note = payment['note']?.toString() ?? '';
 
                       return Card(
+                        elevation: 0,
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: const CircleAvatar(
-                            child: Icon(Icons.payment),
-                          ),
-
+                          leading: _buildSmallIcon(Icons.payment_outlined),
                           title: Text(
-                            'Rs. ${amount.toStringAsFixed(2)}',
+                            'Rs. '
+                            '${amount.toStringAsFixed(2)}',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-
                           subtitle: Text(
                             '$paymentDate • $method'
                             '${note.isNotEmpty ? '\nNote: $note' : ''}',
                           ),
-
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Edit payment button.
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined),
                                 tooltip: 'Edit Payment',
@@ -1829,8 +1542,6 @@ class _InvoicePageState extends State<InvoicePage> {
                                   _showEditPaymentDialog(invoice, payment);
                                 },
                               ),
-
-                              // Delete payment button.
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 tooltip: 'Delete Payment',
@@ -1899,13 +1610,17 @@ class _InvoicePageState extends State<InvoicePage> {
                                       newStatus,
                                     );
 
-                                    if (!mounted) return;
+                                    if (!mounted) {
+                                      return;
+                                    }
 
                                     Navigator.pop(context);
 
                                     await _loadInvoices();
 
-                                    if (!mounted) return;
+                                    if (!mounted) {
+                                      return;
+                                    }
 
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -1917,7 +1632,9 @@ class _InvoicePageState extends State<InvoicePage> {
 
                                     _showInvoiceDetails(invoice);
                                   } catch (e) {
-                                    if (!mounted) return;
+                                    if (!mounted) {
+                                      return;
+                                    }
 
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -1937,26 +1654,27 @@ class _InvoicePageState extends State<InvoicePage> {
 
                   const SizedBox(height: 8),
 
-                  _invoiceSummaryRow('Paid Amount', paidAmount),
-
-                  _invoiceSummaryRow(
-                    'Remaining',
-                    remainingAmount,
-                    isGrandTotal: true,
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: [
+                          _invoiceSummaryRow('Paid Amount', paidAmount),
+                          _invoiceSummaryRow(
+                            'Remaining',
+                            remainingAmount,
+                            isGrandTotal: true,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-
-          // ============================================================
-          // DETAILS ACTIONS
-          // ============================================================
-          // ============================================================
-          // DETAILS ACTIONS
-          // ============================================================
           actions: [
-            // Edit invoice.
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -1967,7 +1685,6 @@ class _InvoicePageState extends State<InvoicePage> {
               label: const Text('Edit Invoice'),
             ),
 
-            // Delete invoice.
             TextButton.icon(
               onPressed: () async {
                 final shouldDelete = await showDialog<bool>(
@@ -1980,7 +1697,6 @@ class _InvoicePageState extends State<InvoicePage> {
                         'This action cannot be undone.',
                       ),
                       actions: [
-                        // Cancel delete.
                         TextButton.icon(
                           onPressed: () {
                             Navigator.pop(context, false);
@@ -1988,8 +1704,6 @@ class _InvoicePageState extends State<InvoicePage> {
                           icon: const Icon(Icons.close),
                           label: const Text('Cancel'),
                         ),
-
-                        // Confirm delete.
                         FilledButton.icon(
                           onPressed: () {
                             Navigator.pop(context, true);
@@ -2013,7 +1727,6 @@ class _InvoicePageState extends State<InvoicePage> {
 
                   Navigator.pop(context);
 
-                  // Refresh list after deletion.
                   await _loadInvoices();
 
                   if (!mounted) return;
@@ -2035,7 +1748,6 @@ class _InvoicePageState extends State<InvoicePage> {
               label: const Text('Delete Invoice'),
             ),
 
-            // Close details dialog.
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -2050,352 +1762,25 @@ class _InvoicePageState extends State<InvoicePage> {
   }
 
   // ============================================================
-  // INVOICE SUMMARY ROW
-  // ============================================================
-
-  Widget _invoiceSummaryRow(
-    String label,
-    dynamic value, {
-    bool isGrandTotal = false,
-  }) {
-    final amount = double.tryParse(value.toString()) ?? 0;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: isGrandTotal ? 18 : 15,
-              fontWeight: isGrandTotal ? FontWeight.bold : FontWeight.w500,
-            ),
-          ),
-          Text(
-            'Rs. '
-            '${amount.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: isGrandTotal ? 18 : 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // INITIAL LOAD
-  // ============================================================
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Load invoices when the page opens.
-    _loadInvoices();
-  }
-
-  // ============================================================
-  // MAIN UI
-  // ============================================================
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Invoices')),
-
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ==========================================================
-            // PAGE HEADER
-            // ==========================================================
-
-            const Text(
-              'Invoice Management',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Create and manage your business invoices',
-              style: TextStyle(fontSize: 16),
-            ),
-
-            const SizedBox(height: 25),
-
-            // ==========================================================
-            // SEARCH + STATUS FILTER + CREATE BUTTON
-            // ==========================================================
-            Row(
-              children: [
-                // Search field.
-                Expanded(
-                  child: TextField(
-                    onChanged: _searchInvoices,
-                    decoration: InputDecoration(
-                      hintText: 'Search Invoices...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // Status filter.
-                DropdownButton<String>(
-                  value: selectedStatus,
-                  items: const [
-                    DropdownMenuItem(value: 'All', child: Text('All Status')),
-                    DropdownMenuItem(value: 'Draft', child: Text('Draft')),
-                    DropdownMenuItem(value: 'Paid', child: Text('Paid')),
-                    DropdownMenuItem(
-                      value: 'Partially Paid',
-                      child: Text('Partially Paid'),
-                    ),
-                    DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
-                    DropdownMenuItem(
-                      value: 'Cancelled',
-                      child: Text('Cancelled'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-
-                    setState(() {
-                      selectedStatus = value;
-                    });
-
-                    // Reapply search with new status.
-                    _searchInvoices(invoiceSearchQuery);
-                  },
-                ),
-
-                const SizedBox(width: 15),
-
-                // Create invoice button.
-                FilledButton.icon(
-                  onPressed: _showCreateInvoiceDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Invoice'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            // ==========================================================
-            // INVOICE LIST
-            // ==========================================================
-            Expanded(
-              child: isLoadingInvoices
-                  ? const Center(child: CircularProgressIndicator())
-                  // ======================================================
-                  // EMPTY STATE
-                  // ======================================================
-                  : filteredInvoices.isEmpty
-                  ? Card(
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.receipt_long, size: 70),
-
-                            const SizedBox(height: 15),
-
-                            // Different message for
-                            // search/filter empty state.
-                            Text(
-                              invoiceSearchQuery.isNotEmpty ||
-                                      selectedStatus != 'All'
-                                  ? 'No matching invoices found'
-                                  : 'No invoices yet',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            // Different description for
-                            // search/filter empty state.
-                            Text(
-                              invoiceSearchQuery.isNotEmpty ||
-                                      selectedStatus != 'All'
-                                  ? 'Try changing your search or status filter.'
-                                  : 'Create your first invoice to get started.',
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // Only show create button when
-                            // there are no invoices at all.
-                            if (invoiceSearchQuery.isEmpty &&
-                                selectedStatus == 'All')
-                              FilledButton.icon(
-                                onPressed: _showCreateInvoiceDialog,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Create Invoice'),
-                              ),
-                          ],
-                        ),
-                      ),
-                    )
-                  // ======================================================
-                  // INVOICE LIST CARD
-                  // ======================================================
-                  : Card(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(12),
-
-                        // Display filtered invoices.
-                        itemCount: filteredInvoices.length,
-
-                        separatorBuilder: (context, index) {
-                          return const Divider();
-                        },
-
-                        itemBuilder: (context, index) {
-                          final invoice = filteredInvoices[index];
-
-                          final dueDateString = invoice['due_date']?.toString();
-
-                          final dueDate = dueDateString != null
-                              ? DateTime.tryParse(dueDateString)
-                              : null;
-
-                          final today = DateTime(
-                            DateTime.now().year,
-                            DateTime.now().month,
-                            DateTime.now().day,
-                          );
-
-                          final isOverdue =
-                              dueDate != null &&
-                              DateTime(
-                                dueDate.year,
-                                dueDate.month,
-                                dueDate.day,
-                              ).isBefore(today) &&
-                              invoice['status'] != 'Paid' &&
-                              invoice['status'] != 'Cancelled';
-
-                          return ListTile(
-                            // Invoice icon.
-                            leading: const CircleAvatar(
-                              child: Icon(Icons.receipt_long),
-                            ),
-
-                            // Invoice number.
-                            title: Text(
-                              invoice['invoice_number'].toString(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            // Customer information.
-                            subtitle: Text(
-                              '${invoice['customer_name'] ?? 'Unknown Customer'}\n'
-                              '${invoice['customer_phone'] ?? ''}\n'
-                              'Date: ${invoice['invoice_date'].toString().split('T').first}\n'
-                              'Status: ${invoice['status']}',
-                            ),
-
-                            isThreeLine: true,
-
-                            // Open invoice details.
-                            onTap: () {
-                              _showInvoiceDetails(invoice);
-                            },
-
-                            // Grand total.
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'Rs. '
-                                  '${double.parse(invoice['grand_total'].toString()).toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: isOverdue ? Colors.red : null,
-                                  ),
-                                ),
-
-                                if (isOverdue) ...[
-                                  const SizedBox(height: 4),
-
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text(
-                                      'OVERDUE',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  // ============================================================
   // ADD PAYMENT
   // ============================================================
 
   Future<void> _showAddPaymentDialog(Map<String, dynamic> invoice) async {
-    // Payment amount controller.
     final amountController = TextEditingController();
 
-    // Optional payment note controller.
     final noteController = TextEditingController();
 
-    // Default payment date.
     DateTime selectedPaymentDate = DateTime.now();
 
-    // Default payment method.
     String selectedPaymentMethod = 'Cash';
 
-    // Invoice total.
     final invoiceTotal =
         double.tryParse(invoice['grand_total'].toString()) ?? 0;
 
-    // Get already paid amount.
     final paidAmount = await DatabaseHelper.getInvoicePaidAmount(
       invoice['id'] as int,
     );
 
-    // Calculate remaining amount.
     final remainingAmount = invoiceTotal - paidAmount;
 
     if (!mounted) return;
@@ -2406,21 +1791,13 @@ class _InvoicePageState extends State<InvoicePage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              // ==========================================================
-              // TITLE
-              // ==========================================================
-
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.payment),
-                  SizedBox(width: 10),
-                  Text('Add Payment'),
+                  _buildDialogIcon(Icons.payment_outlined),
+                  const SizedBox(width: 10),
+                  const Text('Add Payment'),
                 ],
               ),
-
-              // ==========================================================
-              // CONTENT
-              // ==========================================================
               content: SizedBox(
                 width: 450,
                 child: SingleChildScrollView(
@@ -2428,45 +1805,34 @@ class _InvoicePageState extends State<InvoicePage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Invoice total.
                       _invoiceSummaryRow('Invoice Total', invoiceTotal),
-
-                      // Already paid amount.
                       _invoiceSummaryRow('Already Paid', paidAmount),
-
-                      // Remaining amount.
                       _invoiceSummaryRow(
                         'Remaining',
                         remainingAmount,
                         isGrandTotal: true,
                       ),
 
-                      const SizedBox(height: 20),
-                      const Divider(),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 18),
 
-                      // ====================================================
-                      // PAYMENT AMOUNT
-                      // ====================================================
+                      const Divider(),
+
+                      const SizedBox(height: 14),
+
                       TextField(
                         controller: amountController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        decoration: const InputDecoration(
-                          labelText: 'Payment Amount',
-                          hintText: 'Enter amount paid',
-                          prefixIcon: Icon(Icons.attach_money),
-                          prefixText: 'Rs. ',
-                          border: OutlineInputBorder(),
-                        ),
+                        decoration: _inputDecoration(
+                          'Payment Amount',
+                          Icons.attach_money,
+                          hint: 'Enter amount paid',
+                        ).copyWith(prefixText: 'Rs. '),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // ====================================================
-                      // PAYMENT DATE
-                      // ====================================================
                       InkWell(
                         onTap: () async {
                           final pickedDate = await showDatePicker(
@@ -2483,30 +1849,21 @@ class _InvoicePageState extends State<InvoicePage> {
                           }
                         },
                         child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Payment Date',
-                            prefixIcon: Icon(Icons.calendar_today),
-                            border: OutlineInputBorder(),
+                          decoration: _inputDecoration(
+                            'Payment Date',
+                            Icons.calendar_today_outlined,
                           ),
-                          child: Text(
-                            '${selectedPaymentDate.day.toString().padLeft(2, '0')}/'
-                            '${selectedPaymentDate.month.toString().padLeft(2, '0')}/'
-                            '${selectedPaymentDate.year}',
-                          ),
+                          child: Text(_formatDate(selectedPaymentDate)),
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // ====================================================
-                      // PAYMENT METHOD
-                      // ====================================================
                       DropdownButtonFormField<String>(
                         initialValue: selectedPaymentMethod,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment Method',
-                          prefixIcon: Icon(Icons.account_balance_wallet),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Payment Method',
+                          Icons.account_balance_wallet_outlined,
                         ),
                         items: const [
                           DropdownMenuItem(value: 'Cash', child: Text('Cash')),
@@ -2529,29 +1886,21 @@ class _InvoicePageState extends State<InvoicePage> {
                         },
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // ====================================================
-                      // NOTE
-                      // ====================================================
                       TextField(
                         controller: noteController,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Note (Optional)',
-                          hintText: 'Add a payment note',
-                          prefixIcon: Icon(Icons.note_outlined),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Note (Optional)',
+                          Icons.note_outlined,
+                          hint: 'Add a payment note',
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-
-              // ==========================================================
-              // ACTION BUTTONS
-              // ==========================================================
               actions: [
                 TextButton(
                   onPressed: () {
@@ -2559,14 +1908,11 @@ class _InvoicePageState extends State<InvoicePage> {
                   },
                   child: const Text('Cancel'),
                 ),
-
                 FilledButton.icon(
                   onPressed: () async {
-                    // Convert entered amount to number.
                     final amount =
                         double.tryParse(amountController.text.trim()) ?? 0;
 
-                    // Validate amount.
                     if (amount <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -2578,7 +1924,6 @@ class _InvoicePageState extends State<InvoicePage> {
                       return;
                     }
 
-                    // Prevent overpayment.
                     if (amount > remainingAmount) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -2591,7 +1936,6 @@ class _InvoicePageState extends State<InvoicePage> {
                       return;
                     }
 
-                    // Payment database record.
                     final payment = {
                       'invoice_id': invoice['id'] as int,
                       'amount': amount,
@@ -2604,16 +1948,13 @@ class _InvoicePageState extends State<InvoicePage> {
                     };
 
                     try {
-                      // Save payment to SQLite.
                       await DatabaseHelper.insertPayment(payment);
 
-                      // Get the updated total paid amount.
                       final updatedPaidAmount =
                           await DatabaseHelper.getInvoicePaidAmount(
                             invoice['id'] as int,
                           );
 
-                      // Determine the new invoice status.
                       String newStatus;
 
                       if (updatedPaidAmount <= 0) {
@@ -2624,17 +1965,15 @@ class _InvoicePageState extends State<InvoicePage> {
                         newStatus = 'Partially Paid';
                       }
 
-                      // Update invoice status automatically.
                       await DatabaseHelper.updateInvoiceStatus(
                         invoice['id'] as int,
                         newStatus,
                       );
+
                       if (!mounted) return;
 
-                      // Close payment dialog.
                       Navigator.pop(context);
 
-                      // Refresh invoice list so the new status appears immediately.
                       await _loadInvoices();
 
                       if (!mounted) return;
@@ -2652,7 +1991,7 @@ class _InvoicePageState extends State<InvoicePage> {
                       );
                     }
                   },
-                  icon: const Icon(Icons.save),
+                  icon: const Icon(Icons.save_outlined),
                   label: const Text('Save Payment'),
                 ),
               ],
@@ -2662,6 +2001,10 @@ class _InvoicePageState extends State<InvoicePage> {
       },
     );
   }
+
+  // ============================================================
+  // EDIT PAYMENT
+  // ============================================================
 
   Future<void> _showEditPaymentDialog(
     Map<String, dynamic> invoice,
@@ -2688,8 +2031,6 @@ class _InvoicePageState extends State<InvoicePage> {
       invoice['id'] as int,
     );
 
-    // Remove the current payment from the paid amount.
-    // This gives us the maximum amount allowed for the edited payment.
     final currentPaymentAmount = (payment['amount'] as num).toDouble();
 
     final paidWithoutCurrentPayment = paidAmount - currentPaymentAmount;
@@ -2704,14 +2045,13 @@ class _InvoicePageState extends State<InvoicePage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.edit_outlined),
-                  SizedBox(width: 10),
-                  Text('Edit Payment'),
+                  _buildDialogIcon(Icons.edit_outlined),
+                  const SizedBox(width: 10),
+                  const Text('Edit Payment'),
                 ],
               ),
-
               content: SizedBox(
                 width: 450,
                 child: SingleChildScrollView(
@@ -2720,39 +2060,35 @@ class _InvoicePageState extends State<InvoicePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _invoiceSummaryRow('Invoice Total', invoiceTotal),
-
                       _invoiceSummaryRow(
                         'Paid Before This Payment',
                         paidWithoutCurrentPayment,
                       ),
-
                       _invoiceSummaryRow(
                         'Maximum Payment',
                         maximumPaymentAmount,
                         isGrandTotal: true,
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
                       const Divider(),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 14),
 
                       TextField(
                         controller: amountController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        decoration: const InputDecoration(
-                          labelText: 'Payment Amount',
-                          hintText: 'Enter payment amount',
-                          prefixIcon: Icon(Icons.attach_money),
-                          prefixText: 'Rs. ',
-                          border: OutlineInputBorder(),
-                        ),
+                        decoration: _inputDecoration(
+                          'Payment Amount',
+                          Icons.attach_money,
+                          hint: 'Enter payment amount',
+                        ).copyWith(prefixText: 'Rs. '),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
                       InkWell(
                         onTap: () async {
@@ -2770,27 +2106,21 @@ class _InvoicePageState extends State<InvoicePage> {
                           }
                         },
                         child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Payment Date',
-                            prefixIcon: Icon(Icons.calendar_today),
-                            border: OutlineInputBorder(),
+                          decoration: _inputDecoration(
+                            'Payment Date',
+                            Icons.calendar_today_outlined,
                           ),
-                          child: Text(
-                            '${selectedPaymentDate.day.toString().padLeft(2, '0')}/'
-                            '${selectedPaymentDate.month.toString().padLeft(2, '0')}/'
-                            '${selectedPaymentDate.year}',
-                          ),
+                          child: Text(_formatDate(selectedPaymentDate)),
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
                       DropdownButtonFormField<String>(
                         initialValue: selectedPaymentMethod,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment Method',
-                          prefixIcon: Icon(Icons.account_balance_wallet),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Payment Method',
+                          Icons.account_balance_wallet_outlined,
                         ),
                         items: const [
                           DropdownMenuItem(value: 'Cash', child: Text('Cash')),
@@ -2813,23 +2143,21 @@ class _InvoicePageState extends State<InvoicePage> {
                         },
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
                       TextField(
                         controller: noteController,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Note (Optional)',
-                          hintText: 'Add a payment note',
-                          prefixIcon: Icon(Icons.note_outlined),
-                          border: OutlineInputBorder(),
+                        decoration: _inputDecoration(
+                          'Note (Optional)',
+                          Icons.note_outlined,
+                          hint: 'Add a payment note',
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-
               actions: [
                 TextButton(
                   onPressed: () {
@@ -2837,7 +2165,6 @@ class _InvoicePageState extends State<InvoicePage> {
                   },
                   child: const Text('Cancel'),
                 ),
-
                 FilledButton.icon(
                   onPressed: () async {
                     final amount =
@@ -2924,7 +2251,7 @@ class _InvoicePageState extends State<InvoicePage> {
                       );
                     }
                   },
-                  icon: const Icon(Icons.save),
+                  icon: const Icon(Icons.save_outlined),
                   label: const Text('Save Changes'),
                 ),
               ],
@@ -2932,6 +2259,1180 @@ class _InvoicePageState extends State<InvoicePage> {
           },
         );
       },
+    );
+  }
+
+  // ============================================================
+  // UI HELPERS
+  // ============================================================
+
+  InputDecoration _inputDecoration(
+    String label,
+    IconData icon, {
+    String? hint,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDialogIcon(IconData icon) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 23),
+    );
+  }
+
+  Widget _buildSmallIcon(IconData icon) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        _buildSmallIcon(icon),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmountBox(
+    String label,
+    double amount, {
+    required IconData icon,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            'Rs. ${amount.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGrandTotalBox(double amount) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer
+            .withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Grand Total',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+          ),
+          Text(
+            'Rs. ${amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalculationRow(
+    String label,
+    double amount, {
+    bool bold = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+        Text(
+          'Rs. ${amount.toStringAsFixed(2)}',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailsCustomerCard(Map<String, dynamic> invoice) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                _buildSmallIcon(Icons.person_outline),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        invoice['customer_name']?.toString() ??
+                            'Unknown Customer',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        invoice['customer_phone']?.toString() ?? '-',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            const Divider(),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDateInfo(
+                    'Invoice Date',
+                    invoice['invoice_date']?.toString().split('T').first ?? '-',
+                    Icons.calendar_today_outlined,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildDateInfo(
+                    'Due Date',
+                    invoice['due_date'] != null
+                        ? invoice['due_date'].toString().split('T').first
+                        : '-',
+                    Icons.event_available_outlined,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateInfo(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceStatusBadge(String status) {
+    Color color;
+    IconData icon;
+
+    switch (status) {
+      case 'Paid':
+        color = Colors.green;
+        icon = Icons.check_circle_outline;
+        break;
+
+      case 'Partially Paid':
+        color = Colors.orange;
+        icon = Icons.timelapse;
+        break;
+
+      case 'Overdue':
+        color = Colors.red;
+        icon = Icons.warning_amber_rounded;
+        break;
+
+      case 'Cancelled':
+        color = Colors.grey;
+        icon = Icons.cancel_outlined;
+        break;
+
+      case 'Draft':
+      default:
+        color = Colors.blue;
+        icon = Icons.edit_note;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceIcon({bool overdue = false}) {
+    final color = overdue ? Colors.red : Theme.of(context).colorScheme.primary;
+
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(Icons.receipt_long_outlined, color: color, size: 24),
+    );
+  }
+
+  Widget _buildInvoiceInfo(String title, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceCard({
+    required Map<String, dynamic> invoice,
+    required String invoiceNumber,
+    required String customerName,
+    required String customerPhone,
+    required String invoiceDate,
+    required String status,
+    required double total,
+    required bool isOverdue,
+    required bool isSmallWidth,
+  }) {
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          _showInvoiceDetails(invoice);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: isSmallWidth
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInvoiceIcon(overdue: isOverdue),
+
+                        const SizedBox(width: 10),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                invoiceNumber,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (customerPhone.isNotEmpty)
+                                Text(
+                                  customerPhone,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          onSelected: (value) {
+                            if (value == 'view') {
+                              _showInvoiceDetails(invoice);
+                            } else if (value == 'edit') {
+                              _showEditInvoiceDialog(invoice);
+                            } else if (value == 'pdf') {
+                              _generateInvoicePdf(invoice);
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'view',
+                              child: Text('View Details'),
+                            ),
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Edit Invoice'),
+                            ),
+                            PopupMenuItem(
+                              value: 'pdf',
+                              child: Text('Export PDF'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    const Divider(height: 1),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildInvoiceInfo(
+                            'Date',
+                            invoiceDate,
+                            Icons.calendar_today_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildInvoiceInfo(
+                            'Status',
+                            status,
+                            Icons.info_outline,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Row(
+                      children: [
+                        Text(
+                          'Total',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Rs. '
+                          '${total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: isOverdue ? Colors.red : null,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        _buildInvoiceStatusBadge(
+                          isOverdue ? 'Overdue' : status,
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () {
+                            _showInvoiceDetails(invoice);
+                          },
+                          icon: const Icon(Icons.visibility_outlined, size: 17),
+                          label: const Text('View'),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    _buildInvoiceIcon(overdue: isOverdue),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            invoiceNumber,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            customerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (customerPhone.isNotEmpty)
+                            Text(
+                              customerPhone,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 16),
+
+                    Expanded(
+                      child: _buildInvoiceInfo(
+                        'Date',
+                        invoiceDate,
+                        Icons.calendar_today_outlined,
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    _buildInvoiceStatusBadge(isOverdue ? 'Overdue' : status),
+
+                    const SizedBox(width: 18),
+
+                    Text(
+                      'Rs. '
+                      '${total.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isOverdue ? Colors.red : null,
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    PopupMenuButton<String>(
+                      tooltip: 'Invoice Actions',
+                      onSelected: (value) {
+                        if (value == 'view') {
+                          _showInvoiceDetails(invoice);
+                        } else if (value == 'edit') {
+                          _showEditInvoiceDialog(invoice);
+                        } else if (value == 'pdf') {
+                          _generateInvoicePdf(invoice);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'view',
+                          child: Text('View Details'),
+                        ),
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit Invoice'),
+                        ),
+                        PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+                      ],
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // SUMMARY ROW
+  // ============================================================
+
+  Widget _invoiceSummaryRow(
+    String label,
+    dynamic value, {
+    bool isGrandTotal = false,
+  }) {
+    final amount = double.tryParse(value.toString()) ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isGrandTotal ? 17 : 14,
+              fontWeight: isGrandTotal ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+          Text(
+            'Rs. ${amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: isGrandTotal ? 17 : 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // DATE FORMAT
+  // ============================================================
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  // ============================================================
+  // INITIAL LOAD
+  // ============================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadInvoices();
+  }
+
+  // ============================================================
+  // MAIN UI
+  // ============================================================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSmallWidth = constraints.maxWidth < 1000;
+
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ========================================================
+                  // HEADER
+                  // ========================================================
+
+                  if (isSmallWidth)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            // BACK BUTTON
+                            IconButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.arrow_back),
+                              tooltip: 'Back',
+                            ),
+
+                            const SizedBox(width: 4),
+
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.receipt_long_outlined,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 25,
+                              ),
+                            ),
+
+                            const SizedBox(width: 12),
+
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Invoices',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Create and manage your business invoices',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _showCreateInvoiceDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Create Invoice'),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        // BACK BUTTON
+                        IconButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.arrow_back),
+                          tooltip: 'Back',
+                        ),
+
+                        const SizedBox(width: 4),
+
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 28,
+                          ),
+                        ),
+
+                        const SizedBox(width: 14),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Invoice Management',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Create and manage your business invoices',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        FilledButton.icon(
+                          onPressed: _showCreateInvoiceDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Invoice'),
+                        ),
+                      ],
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  // ========================================================
+                  // SEARCH + FILTER
+                  // ========================================================
+                  if (isSmallWidth)
+                    Column(
+                      children: [
+                        TextField(
+                          onChanged: _searchInvoices,
+                          decoration: InputDecoration(
+                            hintText: 'Search invoices...',
+                            prefixIcon: const Icon(Icons.search),
+                            filled: true,
+                            fillColor: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.35),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedStatus,
+                          decoration: InputDecoration(
+                            labelText: 'Status',
+                            prefixIcon: const Icon(Icons.filter_list),
+                            filled: true,
+                            fillColor: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.35),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          items: _statusItems(),
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+
+                            setState(() {
+                              selectedStatus = value;
+                            });
+
+                            _searchInvoices(invoiceSearchQuery);
+                          },
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            onChanged: _searchInvoices,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Search invoices, customers or phone...',
+                              prefixIcon: const Icon(Icons.search),
+                              filled: true,
+                              fillColor: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 16),
+
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedStatus,
+                            decoration: InputDecoration(
+                              labelText: 'Status',
+                              prefixIcon: const Icon(Icons.filter_list),
+                              filled: true,
+                              fillColor: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            items: _statusItems(),
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+
+                              setState(() {
+                                selectedStatus = value;
+                              });
+
+                              _searchInvoices(invoiceSearchQuery);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  const SizedBox(height: 10),
+
+                  // ========================================================
+                  // RESULT COUNT
+                  // ========================================================
+                  Row(
+                    children: [
+                      Text(
+                        '${filteredInvoices.length} invoice'
+                        '${filteredInvoices.length == 1 ? '' : 's'}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+
+                      const Spacer(),
+
+                      if (invoiceSearchQuery.isNotEmpty ||
+                          selectedStatus != 'All')
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              invoiceSearchQuery = '';
+                              selectedStatus = 'All';
+                              filteredInvoices = List.from(invoices);
+                            });
+                          },
+                          icon: const Icon(Icons.clear, size: 18),
+                          label: const Text('Clear Filters'),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // ========================================================
+                  // INVOICE LIST
+                  // ========================================================
+                  Expanded(
+                    child: isLoadingInvoices
+                        ? const Center(child: CircularProgressIndicator())
+                        : filteredInvoices.isEmpty
+                        ? _buildEmptyState()
+                        : Card(
+                            elevation: 0,
+                            clipBehavior: Clip.antiAlias,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: filteredInvoices.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final invoice = filteredInvoices[index];
+
+                                final dueDateString = invoice['due_date']
+                                    ?.toString();
+
+                                final dueDate = dueDateString != null
+                                    ? DateTime.tryParse(dueDateString)
+                                    : null;
+
+                                final today = DateTime(
+                                  DateTime.now().year,
+                                  DateTime.now().month,
+                                  DateTime.now().day,
+                                );
+
+                                final isOverdue =
+                                    dueDate != null &&
+                                    DateTime(
+                                      dueDate.year,
+                                      dueDate.month,
+                                      dueDate.day,
+                                    ).isBefore(today) &&
+                                    invoice['status'] != 'Paid' &&
+                                    invoice['status'] != 'Cancelled';
+
+                                final invoiceNumber =
+                                    invoice['invoice_number']?.toString() ??
+                                    '-';
+
+                                final customerName =
+                                    invoice['customer_name']?.toString() ??
+                                    'Unknown Customer';
+
+                                final customerPhone =
+                                    invoice['customer_phone']?.toString() ?? '';
+
+                                final invoiceDate =
+                                    invoice['invoice_date']
+                                        ?.toString()
+                                        .split('T')
+                                        .first ??
+                                    '-';
+
+                                final status =
+                                    invoice['status']?.toString() ?? 'Draft';
+
+                                final total =
+                                    double.tryParse(
+                                      invoice['grand_total'].toString(),
+                                    ) ??
+                                    0;
+
+                                return _buildInvoiceCard(
+                                  invoice: invoice,
+                                  invoiceNumber: invoiceNumber,
+                                  customerName: customerName,
+                                  customerPhone: customerPhone,
+                                  invoiceDate: invoiceDate,
+                                  status: status,
+                                  total: total,
+                                  isOverdue: isOverdue,
+                                  isSmallWidth: isSmallWidth,
+                                );
+                              },
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+  // ============================================================
+  // STATUS ITEMS
+  // ============================================================
+
+  List<DropdownMenuItem<String>> _statusItems() {
+    return const [
+      DropdownMenuItem(value: 'All', child: Text('All Status')),
+      DropdownMenuItem(value: 'Draft', child: Text('Draft')),
+      DropdownMenuItem(value: 'Paid', child: Text('Paid')),
+      DropdownMenuItem(value: 'Partially Paid', child: Text('Partially Paid')),
+      DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
+      DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
+    ];
+  }
+
+  // ============================================================
+  // EMPTY STATE
+  // ============================================================
+
+  Widget _buildEmptyState() {
+    final hasFilters = invoiceSearchQuery.isNotEmpty || selectedStatus != 'All';
+
+    return Card(
+      elevation: 0,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 74,
+                height: 74,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.receipt_long_outlined,
+                  size: 37,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              Text(
+                hasFilters ? 'No matching invoices found' : 'No invoices yet',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                hasFilters
+                    ? 'Try changing your search or status filter.'
+                    : 'Create your first invoice to get started.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+
+              const SizedBox(height: 20),
+
+              if (!hasFilters)
+                FilledButton.icon(
+                  onPressed: _showCreateInvoiceDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create Invoice'),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
